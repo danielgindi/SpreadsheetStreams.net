@@ -12,15 +12,15 @@ namespace SpreadsheetStreams
     {
         #region Constructors
 
-        public XmlSpreadsheetWriter(Stream fileOutput, Encoding fileEncoding)
-            : base(fileOutput ?? new MemoryStream())
+        public XmlSpreadsheetWriter(Stream outputStream, Encoding fileEncoding)
+            : base(outputStream ?? new MemoryStream())
         {
             _FileEncoding = fileEncoding ?? Encoding.UTF8;
             _Writer = new StreamWriter(OutputStream, _FileEncoding);
         }
 
-        public XmlSpreadsheetWriter(Stream fileOutput)
-            : this(fileOutput, Encoding.UTF8)
+        public XmlSpreadsheetWriter(Stream outputStream)
+            : this(outputStream, Encoding.UTF8)
         {
 
         }
@@ -86,20 +86,7 @@ namespace SpreadsheetStreams
         #region Private helpers
         
         private static double COLUMN_WIDTH_MULTIPLIER = 5.2875f;
-
-        private string XmlEscape(string value)
-        {
-            value = value.Replace("&", "&amp;");
-            value = value.Replace("<", "&lt;");
-            value = value.Replace(">", "&gt;");
-            value = value.Replace(@"""", "&quot;");
-            value = value.Replace("'", "&apos;");
-            value = value.Replace("\r", "&#xD;");
-            value = value.Replace("\n", "&#xA;");
-
-            return value;
-        }
-
+        
         private string GetCellMergeString(int horz, int vert)
         {
             if (horz < 2 && vert < 2) return "";
@@ -238,7 +225,7 @@ namespace SpreadsheetStreams
 
             if (style.NumberFormat.Type != NumberFormatType.None)
             {
-                Write(string.Format(@"<ss:NumberFormat ss:Format=""{0}""/>", XmlEscape(ConvertNumberFormat(style.NumberFormat))));
+                Write(string.Format(@"<ss:NumberFormat ss:Format=""{0}""/>", XmlHelper.Escape(ConvertNumberFormat(style.NumberFormat))));
             }
 
             if (style.Borders != null && style.Borders.Count > 0)
@@ -388,7 +375,7 @@ namespace SpreadsheetStreams
 
                 if (font.Name != null && font.Name.Length > 0)
                 {
-                    Write($@" ss:FontName=""{XmlEscape(font.Name)}""");
+                    Write($@" ss:FontName=""{XmlHelper.Escape(font.Name)}""");
                 }
 
                 if (font.Italic) // FALSE is default
@@ -473,7 +460,7 @@ namespace SpreadsheetStreams
         {
             if (_ShouldBeginWorksheet)
             {
-                Write(string.Format("<Worksheet ss:Name=\"{0}\">", XmlEscape(_CurrentWorksheetInfo.Name ?? $"Worksheet{_WorksheetCount}")));
+                Write(string.Format("<Worksheet ss:Name=\"{0}\">", XmlHelper.Escape(_CurrentWorksheetInfo.Name ?? $"Worksheet{_WorksheetCount}")));
                 Write("<Table");
 
                 if (_CurrentWorksheetInfo.DefaultRowHeight != null)
@@ -645,7 +632,7 @@ namespace SpreadsheetStreams
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
 
-            Write(string.Format("<Cell{0}{1}><Data ss:Type=\"String\">{2}</Data></Cell>", styleString, merge, XmlEscape(data)));
+            Write(string.Format("<Cell{0}{1}><Data ss:Type=\"String\">{2}</Data></Cell>", styleString, merge, XmlHelper.Escape(data)));
         }
 
         public override void AddCellStringAutoType(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
@@ -664,7 +651,7 @@ namespace SpreadsheetStreams
                 type = "Number";
             }
 
-            Write(string.Format("<Cell{0}{1}><Data ss:Type=\"{2}\">{3}</Data></Cell>", styleString, merge, type, XmlEscape(data)));
+            Write(string.Format("<Cell{0}{1}><Data ss:Type=\"{2}\">{3}</Data></Cell>", styleString, merge, type, XmlHelper.Escape(data)));
         }
 
         public override void AddCellForcedString(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
@@ -722,7 +709,7 @@ namespace SpreadsheetStreams
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
 
             Write(string.Format("<Cell{0}{1} ss:Formula=\"{2}\" />",
-                styleString, merge, XmlEscape(formula)));
+                styleString, merge, XmlHelper.Escape(formula)));
         }
 
         #endregion

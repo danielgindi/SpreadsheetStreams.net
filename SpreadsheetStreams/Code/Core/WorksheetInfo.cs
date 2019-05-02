@@ -5,7 +5,7 @@ namespace SpreadsheetStreams
     public class WorksheetInfo
     {
         internal int Id;
-        internal Uri Uri;
+        internal string Path;
 
         public string Name;
         public float[] ColumnWidths;

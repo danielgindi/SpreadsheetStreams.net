@@ -19,7 +19,7 @@ namespace Samples
                 PopulateData(writer);
 
             using (var file = new FileStream("sample.xlsx", FileMode.Create))
-            using (var writer = new ExcelSpreadsheetWriter(file, CompressionOption.Maximum))
+            using (var writer = new ExcelSpreadsheetWriter(file, System.IO.Compression.CompressionLevel.Optimal))
                 PopulateData(writer);
         }
 

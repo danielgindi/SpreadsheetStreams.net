@@ -9,15 +9,15 @@ namespace SpreadsheetStreams
     {
         #region Constructors
 
-        public CsvSpreadsheetWriter(Stream fileOutput, Encoding fileEncoding)
-            : base(fileOutput)
+        public CsvSpreadsheetWriter(Stream outputStream, Encoding fileEncoding)
+            : base(outputStream)
         {
             _FileEncoding = fileEncoding ?? Encoding.UTF8;
             _Writer = new StreamWriter(OutputStream, _FileEncoding);
         }
 
-        public CsvSpreadsheetWriter(Stream fileOutput)
-            : this(fileOutput, Encoding.UTF8)
+        public CsvSpreadsheetWriter(Stream outputStream)
+            : this(outputStream, Encoding.UTF8)
         {
 
         }

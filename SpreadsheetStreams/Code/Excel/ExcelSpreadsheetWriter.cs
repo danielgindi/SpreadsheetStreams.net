@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
-using System.IO.Packaging;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Xml;
@@ -15,17 +15,12 @@ namespace SpreadsheetStreams
     {
         #region Constructors
 
-        public ExcelSpreadsheetWriter(Stream fileOutput, CompressionOption compressionOption = CompressionOption.Normal)
-            : base(fileOutput ?? new MemoryStream())
+        public ExcelSpreadsheetWriter(Stream outputStream, CompressionLevel compressionLevel = CompressionLevel.Fastest)
+            : base(outputStream ?? new MemoryStream())
         {
-            var packageAccess = OutputStream.CanRead && OutputStream.CanWrite ? FileAccess.ReadWrite : FileAccess.Write;
+            _Package = new PackageWriteStream(outputStream);
 
-            _Package = Package.Open(
-                OutputStream,
-                FileMode.Create,
-                packageAccess);
-
-            _CompressionOption = compressionOption;
+            _CompressionLevel = compressionLevel;
         }
 
         public ExcelSpreadsheetWriter() : this(null)
@@ -44,7 +39,7 @@ namespace SpreadsheetStreams
             {
                 if (_Package != null)
                 {
-                    _Package.Close();
+                    _Package.Dispose();
                     _Package = null;
                 }
 
@@ -62,10 +57,10 @@ namespace SpreadsheetStreams
 
         private CultureInfo _Culture = CultureInfo.InvariantCulture;
 
-        private Package _Package = null;
-        private CompressionOption _CompressionOption = CompressionOption.Normal;
+        private PackageWriteStream _Package = null;
+        private CompressionLevel _CompressionLevel = CompressionLevel.Fastest;
 
-        private PackagePart _CurrentWorksheetPart = null;
+        private ZipArchiveEntry _CurrentWorksheetEntry = null;
         private Stream _CurrentWorksheetPartStream = null;
         private StreamWriter _CurrentWorksheetPartWriter = null;
         private WorksheetInfo _CurrentWorksheetInfo = null;
@@ -107,19 +102,6 @@ namespace SpreadsheetStreams
         #endregion
 
         #region Private helpers
-
-        private string XmlEscape(string value)
-        {
-            value = value.Replace("&", "&amp;");
-            value = value.Replace("<", "&lt;");
-            value = value.Replace(">", "&gt;");
-            value = value.Replace(@"""", "&quot;");
-            value = value.Replace("'", "&apos;");
-            value = value.Replace("\r", "&#xD;");
-            value = value.Replace("\n", "&#xA;");
-
-            return value;
-        }
 
         private string GetStyleId(Style style)
         {
@@ -409,7 +391,7 @@ namespace SpreadsheetStreams
 
             if (convertedFormat.Item1 == -2)
             {
-                writer.Write($"<numFmt numFmtId=\"{id}\" formatCode=\"{XmlEscape(convertedFormat.Item2)}\"/>");
+                writer.Write($"<numFmt numFmtId=\"{id}\" formatCode=\"{XmlHelper.Escape(convertedFormat.Item2)}\"/>");
                 if (styleId != null) _StyleIdNumberFormatIdMap[styleId.Value] = id;
                 return true;
             }
@@ -525,9 +507,9 @@ namespace SpreadsheetStreams
             }
         }
 
-        private void WriteStylesXml(PackagePart part)
+        private void WriteStylesXml(Stream stream)
         {
-            using (var writer = new StreamWriter(part.GetStream(FileMode.Create, FileAccess.Write)))
+            using (var writer = new StreamWriter(stream))
             {
                 writer.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
                 writer.Write("<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"x14ac\" xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\">");
@@ -588,9 +570,9 @@ namespace SpreadsheetStreams
             }
         }
 
-        private void WriteWorkbookXml(PackagePart part)
+        private void WriteWorkbookXml(Stream stream)
         {
-            using (var writer = new StreamWriter(part.GetStream(FileMode.Create, FileAccess.Write)))
+            using (var writer = new StreamWriter(stream))
             {
                 writer.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
                 writer.Write("<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">");
@@ -599,7 +581,7 @@ namespace SpreadsheetStreams
 
                 foreach (var item in _WorksheetInfos)
                 {
-                    writer.Write($"<sheet r:id=\"rId{item.Id}\" sheetId=\"{item.Id}\" name=\"{XmlEscape(item.Name ?? $"Worksheet{item.Id}")}\"/>");
+                    writer.Write($"<sheet r:id=\"rId{item.Id}\" sheetId=\"{item.Id}\" name=\"{XmlHelper.Escape(item.Name ?? $"Worksheet{item.Id}")}\"/>");
                 }
 
                 writer.Write("</sheets>");
@@ -664,9 +646,9 @@ namespace SpreadsheetStreams
 
         private void EndPackage()
         {
-            Uri workbookUri = new Uri("/xl/workbook.xml", UriKind.Relative);
-            Uri stylesheetUri = new Uri("/xl/styles.xml", UriKind.Relative);
-            Uri sharedStringsUri = new Uri("/xl/sharedStrings.xml", UriKind.Relative);
+            string workbookPath = "/xl/workbook.xml";
+            string stylesheetPath = "/xl/styles.xml";
+            string sharedStringsPath = "/xl/sharedStrings.xml";
 
             var idCounter = _WorksheetInfos.Count + 1;
 
@@ -674,29 +656,45 @@ namespace SpreadsheetStreams
             int ridStyles = idCounter++;
             int ridSharedStrings = idCounter++;
 
-            var wbPart = _Package.CreatePart(workbookUri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml", _CompressionOption);
-            WriteWorkbookXml(wbPart);
-            
-            var stylesPart = _Package.CreatePart(stylesheetUri, "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml", _CompressionOption);
-            WriteStylesXml(stylesPart);
+            var wbEntry = _Package.CreateStream(workbookPath, _CompressionLevel);
+            using (var stream = wbEntry.Open())
+            {
+                _Package.AddPackageRelationship(workbookPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", "rId" + ridWb);
+                _Package.AddContentType(workbookPath, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml");
 
-            var sharedStringsPart = _Package.CreatePart(sharedStringsUri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml", _CompressionOption);
-            using (var writer = new StreamWriter(sharedStringsPart.GetStream(FileMode.Create, FileAccess.Write)))
+                WriteWorkbookXml(stream);
+            }
+
+            var stylesEntry = _Package.CreateStream(stylesheetPath, _CompressionLevel);
+            using (var stream = stylesEntry.Open())
+            {
+                _Package.AddPartRelationship(workbookPath, stylesheetPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles", "rId" + ridStyles);
+                _Package.AddContentType(stylesheetPath, "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml");
+
+                WriteStylesXml(stream);
+            }
+
+            var sharedStringsEntry = _Package.CreateStream(sharedStringsPath, _CompressionLevel);
+            _Package.AddPartRelationship(workbookPath, sharedStringsPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings", "rId" + ridSharedStrings);
+            _Package.AddContentType(sharedStringsPath, "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml");
+
+            using (var stream = sharedStringsEntry.Open())
+            using (var writer = new StreamWriter(stream))
             {
                 writer.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
                 writer.Write("<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"0\" uniqueCount=\"0\"></sst>");
             }
 
-            _Package.CreateRelationship(wbPart.Uri, TargetMode.Internal, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", "rId" + ridWb);
-            wbPart.CreateRelationship(new Uri(stylesPart.Uri.ToString().Remove(0, 4), UriKind.RelativeOrAbsolute), TargetMode.Internal, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles", "rId" + ridStyles);
-            wbPart.CreateRelationship(new Uri(sharedStringsPart.Uri.ToString().Remove(0, 4), UriKind.RelativeOrAbsolute), TargetMode.Internal, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings", "rId" + ridSharedStrings);
-
             foreach (var ws in _WorksheetInfos)
             {
-                wbPart.CreateRelationship(new Uri(ws.Uri.ToString().Remove(0, 4), UriKind.RelativeOrAbsolute), TargetMode.Internal, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet", "rId" + ws.Id);
+                _Package.AddPartRelationship(workbookPath, ws.Path, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet", "rId" + ws.Id);
+                _Package.AddContentType(ws.Path, "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml");
             }
 
+            _Package.CommitRelationships(_CompressionLevel);
+            _Package.CommitContentTypes(_CompressionLevel);
             _Package.Close();
+
             _Package = null;
         }
 
@@ -709,9 +707,8 @@ namespace SpreadsheetStreams
                     _CurrentWorksheetPartWriter.Dispose();
                 }
 
-                _CurrentWorksheetPart = _Package.CreatePart(_CurrentWorksheetInfo.Uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml", _CompressionOption);
-
-                _CurrentWorksheetPartStream = _CurrentWorksheetPart.GetStream(FileMode.Create, FileAccess.Write);
+                _CurrentWorksheetEntry = _Package.CreateStream(_CurrentWorksheetInfo.Path, _CompressionLevel);
+                _CurrentWorksheetPartStream = _CurrentWorksheetEntry.Open();
                 _CurrentWorksheetPartWriter = new StreamWriter(_CurrentWorksheetPartStream, Encoding.UTF8);
 
                 _CurrentWorksheetPartWriter.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
@@ -820,7 +817,7 @@ namespace SpreadsheetStreams
 
             _CurrentWorksheetInfo = info;
             _CurrentWorksheetInfo.Id = _WorksheetInfos.Count > 0 ? _WorksheetInfos.Last().Id + 1 : 1;
-            _CurrentWorksheetInfo.Uri = new Uri("/xl/worksheets/sheet" + _CurrentWorksheetInfo.Id + ".xml", UriKind.Relative);
+            _CurrentWorksheetInfo.Path = "/xl/worksheets/sheet" + _CurrentWorksheetInfo.Id + ".xml";
             _WorksheetInfos.Add(_CurrentWorksheetInfo);
 
             _ShouldBeginWorksheet = true;
@@ -910,7 +907,7 @@ namespace SpreadsheetStreams
             MergeNextCell(horzCellCount, vertCellCount);
 
             WriteCellHeader(_CellCount++, _RowCount, false, "str", style);
-            _CurrentWorksheetPartWriter.Write("<v>" + XmlEscape(data) + "</v>");
+            _CurrentWorksheetPartWriter.Write("<v>" + XmlHelper.Escape(data) + "</v>");
             WriteCellFooter();
 
             if (horzCellCount > 1)
@@ -933,7 +930,7 @@ namespace SpreadsheetStreams
             }
 
             WriteCellHeader(_CellCount++, _RowCount, false, type, style);
-            _CurrentWorksheetPartWriter.Write("<v>" + XmlEscape(data) + "</v>");
+            _CurrentWorksheetPartWriter.Write("<v>" + XmlHelper.Escape(data) + "</v>");
             WriteCellFooter();
 
             if (horzCellCount > 1)
@@ -1029,7 +1026,7 @@ namespace SpreadsheetStreams
             MergeNextCell(horzCellCount, vertCellCount);
 
             WriteCellHeader(_CellCount++, _RowCount, false, "str", style);
-            _CurrentWorksheetPartWriter.Write("<f>" + XmlEscape(formula) + "</f>");
+            _CurrentWorksheetPartWriter.Write("<f>" + XmlHelper.Escape(formula) + "</f>");
             WriteCellFooter();
 
             if (horzCellCount > 1)

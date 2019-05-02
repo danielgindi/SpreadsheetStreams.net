@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.572
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Samples", "Samples\Samples.csproj", "{BD3E902F-AB43-4BB7-A5FB-3D57BA469240}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpreadsheetStreams", "SpreadsheetStreams\SpreadsheetStreams.csproj", "{34B2EAC9-F35A-48AF-A89E-C13D76451023}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BD3E902F-AB43-4BB7-A5FB-3D57BA469240}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD3E902F-AB43-4BB7-A5FB-3D57BA469240}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD3E902F-AB43-4BB7-A5FB-3D57BA469240}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD3E902F-AB43-4BB7-A5FB-3D57BA469240}.Release|Any CPU.Build.0 = Release|Any CPU
+		{34B2EAC9-F35A-48AF-A89E-C13D76451023}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{34B2EAC9-F35A-48AF-A89E-C13D76451023}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{34B2EAC9-F35A-48AF-A89E-C13D76451023}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{34B2EAC9-F35A-48AF-A89E-C13D76451023}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C27CB6A4-5719-411D-93F7-0E3D42FFC9A1}
+	EndGlobalSection
+EndGlobal

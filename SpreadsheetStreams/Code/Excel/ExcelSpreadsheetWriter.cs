@@ -7,7 +7,6 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
-using System.Xml;
 
 namespace SpreadsheetStreams
 {
@@ -18,6 +17,11 @@ namespace SpreadsheetStreams
         public ExcelSpreadsheetWriter(Stream outputStream, CompressionLevel compressionLevel = CompressionLevel.Fastest)
             : base(outputStream ?? new MemoryStream())
         {
+            if (outputStream.GetType().Name == "System.Web.HttpResponseStream")
+            {
+                outputStream = new WriteStreamWrapper(outputStream);
+            }
+
             _Package = new PackageWriteStream(outputStream);
 
             _CompressionLevel = compressionLevel;

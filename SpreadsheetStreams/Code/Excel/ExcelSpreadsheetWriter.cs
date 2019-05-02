@@ -18,10 +18,13 @@ namespace SpreadsheetStreams
         public ExcelSpreadsheetWriter(Stream fileOutput, CompressionOption compressionOption = CompressionOption.Normal)
             : base(fileOutput ?? new MemoryStream())
         {
+            var packageAccess = OutputStream.CanRead && OutputStream.CanWrite ? FileAccess.ReadWrite : FileAccess.Write;
+
             _Package = Package.Open(
                 OutputStream,
                 FileMode.Create,
-                OutputStream.CanRead && OutputStream.CanWrite ? FileAccess.ReadWrite : FileAccess.Write);
+                packageAccess);
+
             _CompressionOption = compressionOption;
         }
 
@@ -524,7 +527,7 @@ namespace SpreadsheetStreams
 
         private void WriteStylesXml(PackagePart part)
         {
-            using (var writer = new StreamWriter(part.GetStream()))
+            using (var writer = new StreamWriter(part.GetStream(FileMode.Create, FileAccess.Write)))
             {
                 writer.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
                 writer.Write("<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"x14ac\" xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\">");
@@ -587,7 +590,7 @@ namespace SpreadsheetStreams
 
         private void WriteWorkbookXml(PackagePart part)
         {
-            using (var writer = new StreamWriter(part.GetStream()))
+            using (var writer = new StreamWriter(part.GetStream(FileMode.Create, FileAccess.Write)))
             {
                 writer.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
                 writer.Write("<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">");
@@ -678,7 +681,7 @@ namespace SpreadsheetStreams
             WriteStylesXml(stylesPart);
 
             var sharedStringsPart = _Package.CreatePart(sharedStringsUri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml", _CompressionOption);
-            using (var writer = new StreamWriter(sharedStringsPart.GetStream()))
+            using (var writer = new StreamWriter(sharedStringsPart.GetStream(FileMode.Create, FileAccess.Write)))
             {
                 writer.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
                 writer.Write("<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"0\" uniqueCount=\"0\"></sst>");
@@ -708,7 +711,7 @@ namespace SpreadsheetStreams
 
                 _CurrentWorksheetPart = _Package.CreatePart(_CurrentWorksheetInfo.Uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml", _CompressionOption);
 
-                _CurrentWorksheetPartStream = _CurrentWorksheetPart.GetStream();
+                _CurrentWorksheetPartStream = _CurrentWorksheetPart.GetStream(FileMode.Create, FileAccess.Write);
                 _CurrentWorksheetPartWriter = new StreamWriter(_CurrentWorksheetPartStream, Encoding.UTF8);
 
                 _CurrentWorksheetPartWriter.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");

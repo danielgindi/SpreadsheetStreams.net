@@ -18,7 +18,10 @@ namespace SpreadsheetStreams
         public ExcelSpreadsheetWriter(Stream fileOutput, CompressionOption compressionOption = CompressionOption.Normal)
             : base(fileOutput ?? new MemoryStream())
         {
-            _Package = Package.Open(OutputStream, FileMode.Create);
+            _Package = Package.Open(
+                OutputStream,
+                FileMode.Create,
+                OutputStream.CanRead && OutputStream.CanWrite ? FileAccess.ReadWrite : FileAccess.Write);
             _CompressionOption = compressionOption;
         }
 

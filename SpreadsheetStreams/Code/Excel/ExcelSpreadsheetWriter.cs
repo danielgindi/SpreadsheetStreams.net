@@ -540,8 +540,9 @@ namespace SpreadsheetStreams
                     }
                     writer.Write("</fonts>");
 
-                    nextId = 1;
-                    writer.Write($"<fills count=\"{_Styles.Count(x => x.Key.Fill != null && x.Key.Fill.Value.Pattern != FillPattern.None) + 1}\">");
+                    nextId = 2; // We need 2 dummies, for some reason
+                    writer.Write($"<fills count=\"{_Styles.Count(x => x.Key.Fill != null && x.Key.Fill.Value.Pattern != FillPattern.None) + 2}\">");
+                    WriteStyleFill(writer, null, true, 0, null);
                     WriteStyleFill(writer, null, true, 0, null);
                     foreach (var pair in orderedStyles)
                     {

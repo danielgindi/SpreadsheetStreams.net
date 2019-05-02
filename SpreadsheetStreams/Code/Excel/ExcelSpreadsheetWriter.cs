@@ -17,7 +17,7 @@ namespace SpreadsheetStreams
         public ExcelSpreadsheetWriter(Stream outputStream, CompressionLevel compressionLevel = CompressionLevel.Fastest)
             : base(outputStream ?? new MemoryStream())
         {
-            if (outputStream.GetType().Name == "System.Web.HttpResponseStream")
+            if (outputStream.GetType().FullName == "System.Web.HttpResponseStream")
             {
                 outputStream = new WriteStreamWrapper(outputStream);
             }

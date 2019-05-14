@@ -11,5 +11,6 @@ namespace SpreadsheetStreams
         public float[] ColumnWidths;
         public float? DefaultRowHeight = 15f;
         public float? DefaultColumnWidth = 10f;
+        public bool? RightToLeft = null;
     }
 }

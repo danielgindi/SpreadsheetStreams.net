@@ -460,14 +460,19 @@ namespace SpreadsheetStreams
         {
             if (_ShouldBeginWorksheet)
             {
-                Write(string.Format("<Worksheet ss:Name=\"{0}\">", XmlHelper.Escape(_CurrentWorksheetInfo.Name ?? $"Worksheet{_WorksheetCount}")));
-                Write("<Table");
+                Write(string.Format("<Worksheet ss:Name=\"{0}\"", XmlHelper.Escape(_CurrentWorksheetInfo.Name ?? $"Worksheet{_WorksheetCount}")));
+
+                if (_CurrentWorksheetInfo.RightToLeft != null)
+                    Write($" ss:RightToLeft=\"{(_CurrentWorksheetInfo.RightToLeft == true ? "1" : "0")}\"");
+
+                Write("><Table");
 
                 if (_CurrentWorksheetInfo.DefaultRowHeight != null)
                     Write($" ss:DefaultRowHeight=\"{Math.Max(0f, Math.Min(_CurrentWorksheetInfo.DefaultRowHeight.Value, 409.5f)).ToString("G", _Culture)}\"");
 
                 if (_CurrentWorksheetInfo.DefaultColumnWidth != null)
                     Write($" ss:DefaultColumnWidth=\"{(_CurrentWorksheetInfo.DefaultColumnWidth.Value * COLUMN_WIDTH_MULTIPLIER).ToString("G", _Culture)}\"");
+
 
                 Write(">");
 

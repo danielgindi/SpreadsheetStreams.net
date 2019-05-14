@@ -719,6 +719,13 @@ namespace SpreadsheetStreams
                 _CurrentWorksheetPartWriter.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
                 _CurrentWorksheetPartWriter.Write("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"x14ac\" xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\">");
                 {
+                    _CurrentWorksheetPartWriter.Write("<sheetViews><sheetView");
+                    if (_CurrentWorksheetInfo.RightToLeft != null)
+                    {
+                        _CurrentWorksheetPartWriter.Write($" rightToLeft=\"{(_CurrentWorksheetInfo.RightToLeft == true ? "1" : "0")}\"");
+                    }
+                    _CurrentWorksheetPartWriter.Write(" workbookViewId=\"0\"></sheetView></sheetViews>");
+
                     _CurrentWorksheetPartWriter.Write("<sheetFormatPr");
 
                     if (_CurrentWorksheetInfo.DefaultRowHeight != null)

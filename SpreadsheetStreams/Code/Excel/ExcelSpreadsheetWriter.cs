@@ -835,6 +835,8 @@ namespace SpreadsheetStreams
             _ShouldBeginWorksheet = true;
             _ShouldEndWorksheet = true;
             _MergeCells.Clear();
+
+            _RowCount = 0;
         }
 
         public override void AddRow(Style style = null, float height = 0f)

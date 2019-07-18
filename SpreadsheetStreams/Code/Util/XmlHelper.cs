@@ -7,6 +7,8 @@ namespace SpreadsheetStreams.Util
     {
         internal static string Escape(string value)
         {
+            if (value == null) return "";
+
             value = value.Replace("&", "&amp;");
             value = value.Replace("<", "&lt;");
             value = value.Replace(">", "&gt;");

@@ -8,6 +8,7 @@ namespace SpreadsheetStreams
 {
     internal class PackageWriteStream : IDisposable
     {
+        private XmlWriterHelper _XmlWriterHelper = new XmlWriterHelper();
         private ZipArchive _ZipArchive = null;
         private List<Relationship> _PackageRelationships = new List<Relationship>();
         private List<ContentType> _ContentTypes = new List<ContentType>();
@@ -34,6 +35,12 @@ namespace SpreadsheetStreams
                 {
                     _ZipArchive.Dispose();
                     _ZipArchive = null;
+                }
+
+                if (_XmlWriterHelper != null)
+                {
+                    _XmlWriterHelper.Dispose();
+                    _XmlWriterHelper = null;
                 }
             }
         }
@@ -88,7 +95,7 @@ namespace SpreadsheetStreams
                     {
                         foreach (var rel in _PackageRelationships)
                         {
-                            streamWriter.Write($"<Relationship Type=\"{XmlHelper.Escape(rel.Type)}\" Target=\"{XmlHelper.Escape(rel.Target)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{XmlHelper.Escape(rel.Id)}\"")}/>");
+                            streamWriter.Write($"<Relationship Type=\"{_XmlWriterHelper.EscapeAttribute(rel.Type)}\" Target=\"{_XmlWriterHelper.EscapeAttribute(rel.Target)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{_XmlWriterHelper.EscapeAttribute(rel.Id)}\"")}/>");
                         }
                     }
                     streamWriter.Write("</Relationships>");
@@ -117,7 +124,7 @@ namespace SpreadsheetStreams
                                     target = target.Remove(0, 1);
                             }
 
-                            streamWriter.Write($"<Relationship Type=\"{XmlHelper.Escape(rel.Type)}\" Target=\"{XmlHelper.Escape(target)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{XmlHelper.Escape(rel.Id)}\"")}/>");
+                            streamWriter.Write($"<Relationship Type=\"{_XmlWriterHelper.EscapeAttribute(rel.Type)}\" Target=\"{_XmlWriterHelper.EscapeAttribute(target)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{_XmlWriterHelper.EscapeAttribute(rel.Id)}\"")}/>");
                         }
                     }
                     streamWriter.Write("</Relationships>");
@@ -141,7 +148,7 @@ namespace SpreadsheetStreams
 
                         foreach (var ct in _ContentTypes)
                         {
-                            streamWriter.Write($"<Override PartName=\"{XmlHelper.Escape(ct.Target)}\" ContentType=\"{XmlHelper.Escape(ct.Type)}\"/>");
+                            streamWriter.Write($"<Override PartName=\"{_XmlWriterHelper.EscapeAttribute(ct.Target)}\" ContentType=\"{_XmlWriterHelper.EscapeAttribute(ct.Type)}\"/>");
                         }
                     }
                     streamWriter.Write("</Types>");

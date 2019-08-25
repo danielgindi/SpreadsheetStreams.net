@@ -44,6 +44,12 @@ namespace SpreadsheetStreams
                     _Writer.Close();
                     _Writer = null;
                 }
+
+                if (_XmlWriterHelper != null)
+                {
+                    _XmlWriterHelper.Dispose();
+                    _XmlWriterHelper = null;
+                }
             }
         }
 
@@ -67,6 +73,8 @@ namespace SpreadsheetStreams
         private int _WorksheetCount = 0;
         private WorksheetInfo _CurrentWorksheetInfo = null;
         private List<string> _Columns = new List<string>();
+
+        private XmlWriterHelper _XmlWriterHelper = new XmlWriterHelper();
 
         #endregion
 
@@ -225,7 +233,7 @@ namespace SpreadsheetStreams
 
             if (style.NumberFormat.Type != NumberFormatType.None)
             {
-                Write(string.Format(@"<ss:NumberFormat ss:Format=""{0}""/>", XmlHelper.Escape(ConvertNumberFormat(style.NumberFormat))));
+                Write(string.Format(@"<ss:NumberFormat ss:Format=""{0}""/>", _XmlWriterHelper.EscapeAttribute(ConvertNumberFormat(style.NumberFormat))));
             }
 
             if (style.Borders != null && style.Borders.Count > 0)
@@ -375,7 +383,7 @@ namespace SpreadsheetStreams
 
                 if (font.Name != null && font.Name.Length > 0)
                 {
-                    Write($@" ss:FontName=""{XmlHelper.Escape(font.Name)}""");
+                    Write($@" ss:FontName=""{_XmlWriterHelper.EscapeAttribute(font.Name)}""");
                 }
 
                 if (font.Italic) // FALSE is default
@@ -460,7 +468,7 @@ namespace SpreadsheetStreams
         {
             if (_ShouldBeginWorksheet)
             {
-                Write(string.Format("<Worksheet ss:Name=\"{0}\"", XmlHelper.Escape(_CurrentWorksheetInfo.Name ?? $"Worksheet{_WorksheetCount}")));
+                Write(string.Format("<Worksheet ss:Name=\"{0}\"", _XmlWriterHelper.EscapeAttribute(_CurrentWorksheetInfo.Name ?? $"Worksheet{_WorksheetCount}")));
 
                 if (_CurrentWorksheetInfo.RightToLeft != null)
                     Write($" ss:RightToLeft=\"{(_CurrentWorksheetInfo.RightToLeft == true ? "1" : "0")}\"");
@@ -637,7 +645,7 @@ namespace SpreadsheetStreams
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
 
-            Write(string.Format("<Cell{0}{1}><Data ss:Type=\"String\">{2}</Data></Cell>", styleString, merge, XmlHelper.Escape(data)));
+            Write(string.Format("<Cell{0}{1}><Data ss:Type=\"String\">{2}</Data></Cell>", styleString, merge, _XmlWriterHelper.EscapeValue(data)));
         }
 
         public override void AddCellStringAutoType(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
@@ -656,7 +664,7 @@ namespace SpreadsheetStreams
                 type = "Number";
             }
 
-            Write(string.Format("<Cell{0}{1}><Data ss:Type=\"{2}\">{3}</Data></Cell>", styleString, merge, type, XmlHelper.Escape(data)));
+            Write(string.Format("<Cell{0}{1}><Data ss:Type=\"{2}\">{3}</Data></Cell>", styleString, merge, type, _XmlWriterHelper.EscapeValue(data)));
         }
 
         public override void AddCellForcedString(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
@@ -714,7 +722,7 @@ namespace SpreadsheetStreams
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
 
             Write(string.Format("<Cell{0}{1} ss:Formula=\"{2}\" />",
-                styleString, merge, XmlHelper.Escape(formula)));
+                styleString, merge, _XmlWriterHelper.EscapeAttribute(formula)));
         }
 
         #endregion

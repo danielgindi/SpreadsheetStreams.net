@@ -52,6 +52,12 @@ namespace SpreadsheetStreams
                     _CurrentWorksheetPartWriter.Dispose();
                     _CurrentWorksheetPartWriter = null;
                 }
+
+                if (_XmlWriterHelper != null)
+                {
+                    _XmlWriterHelper.Dispose();
+                    _XmlWriterHelper = null;
+                }
             }
         }
 
@@ -87,6 +93,8 @@ namespace SpreadsheetStreams
         private Dictionary<int, int> _StyleIdFillIdMap = new Dictionary<int, int>();
         private Dictionary<int, int> _StyleIdNumberFormatIdMap = new Dictionary<int, int>();
         private List<string> _Columns = new List<string>();
+
+        private XmlWriterHelper _XmlWriterHelper = new XmlWriterHelper();
 
         #endregion
 
@@ -395,7 +403,7 @@ namespace SpreadsheetStreams
 
             if (convertedFormat.Item1 == -2)
             {
-                writer.Write($"<numFmt numFmtId=\"{id}\" formatCode=\"{XmlHelper.Escape(convertedFormat.Item2)}\"/>");
+                writer.Write($"<numFmt numFmtId=\"{id}\" formatCode=\"{_XmlWriterHelper.EscapeAttribute(convertedFormat.Item2)}\"/>");
                 if (styleId != null) _StyleIdNumberFormatIdMap[styleId.Value] = id;
                 return true;
             }
@@ -586,7 +594,7 @@ namespace SpreadsheetStreams
 
                 foreach (var item in _WorksheetInfos)
                 {
-                    writer.Write($"<sheet r:id=\"rId{item.Id}\" sheetId=\"{item.Id}\" name=\"{XmlHelper.Escape(item.Name ?? $"Worksheet{item.Id}")}\"/>");
+                    writer.Write($"<sheet r:id=\"rId{item.Id}\" sheetId=\"{item.Id}\" name=\"{_XmlWriterHelper.EscapeAttribute(item.Name ?? $"Worksheet{item.Id}")}\"/>");
                 }
 
                 writer.Write("</sheets>");
@@ -921,7 +929,7 @@ namespace SpreadsheetStreams
             MergeNextCell(horzCellCount, vertCellCount);
 
             WriteCellHeader(_CellCount++, _RowCount, false, "str", style);
-            _CurrentWorksheetPartWriter.Write("<v>" + XmlHelper.Escape(data) + "</v>");
+            _CurrentWorksheetPartWriter.Write("<v>" + _XmlWriterHelper.EscapeValue(data) + "</v>");
             WriteCellFooter();
 
             if (horzCellCount > 1)
@@ -944,7 +952,7 @@ namespace SpreadsheetStreams
             }
 
             WriteCellHeader(_CellCount++, _RowCount, false, type, style);
-            _CurrentWorksheetPartWriter.Write("<v>" + XmlHelper.Escape(data) + "</v>");
+            _CurrentWorksheetPartWriter.Write("<v>" + _XmlWriterHelper.EscapeValue(data) + "</v>");
             WriteCellFooter();
 
             if (horzCellCount > 1)
@@ -1040,7 +1048,7 @@ namespace SpreadsheetStreams
             MergeNextCell(horzCellCount, vertCellCount);
 
             WriteCellHeader(_CellCount++, _RowCount, false, "str", style);
-            _CurrentWorksheetPartWriter.Write("<f>" + XmlHelper.Escape(formula) + "</f>");
+            _CurrentWorksheetPartWriter.Write("<f>" + _XmlWriterHelper.EscapeValue(formula) + "</f>");
             WriteCellFooter();
 
             if (horzCellCount > 1)

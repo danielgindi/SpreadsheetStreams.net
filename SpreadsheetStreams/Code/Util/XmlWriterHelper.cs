@@ -10,6 +10,7 @@ namespace SpreadsheetStreams.Util
         private static XmlWriterSettings XmlWriterSettings = new XmlWriterSettings
         {
             ConformanceLevel = ConformanceLevel.Fragment,
+            CheckCharacters = false,
         };
 
         private StringBuilder _Sb;

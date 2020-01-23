@@ -95,7 +95,7 @@ namespace SpreadsheetStreams
                     {
                         foreach (var rel in _PackageRelationships)
                         {
-                            streamWriter.Write($"<Relationship Type=\"{_XmlWriterHelper.EscapeAttribute(rel.Type)}\" Target=\"{_XmlWriterHelper.EscapeAttribute(rel.Target)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{_XmlWriterHelper.EscapeAttribute(rel.Id)}\"")}/>");
+                            streamWriter.Write($"<Relationship Type=\"{_XmlWriterHelper.EscapeAttribute(rel.Type, false)}\" Target=\"{_XmlWriterHelper.EscapeAttribute(rel.Target, false)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{_XmlWriterHelper.EscapeAttribute(rel.Id, false)}\"")}/>");
                         }
                     }
                     streamWriter.Write("</Relationships>");
@@ -124,7 +124,7 @@ namespace SpreadsheetStreams
                                     target = target.Remove(0, 1);
                             }
 
-                            streamWriter.Write($"<Relationship Type=\"{_XmlWriterHelper.EscapeAttribute(rel.Type)}\" Target=\"{_XmlWriterHelper.EscapeAttribute(target)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{_XmlWriterHelper.EscapeAttribute(rel.Id)}\"")}/>");
+                            streamWriter.Write($"<Relationship Type=\"{_XmlWriterHelper.EscapeAttribute(rel.Type, false)}\" Target=\"{_XmlWriterHelper.EscapeAttribute(target)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{_XmlWriterHelper.EscapeAttribute(rel.Id, false)}\"")}/>");
                         }
                     }
                     streamWriter.Write("</Relationships>");
@@ -148,7 +148,7 @@ namespace SpreadsheetStreams
 
                         foreach (var ct in _ContentTypes)
                         {
-                            streamWriter.Write($"<Override PartName=\"{_XmlWriterHelper.EscapeAttribute(ct.Target)}\" ContentType=\"{_XmlWriterHelper.EscapeAttribute(ct.Type)}\"/>");
+                            streamWriter.Write($"<Override PartName=\"{_XmlWriterHelper.EscapeAttribute(ct.Target, false)}\" ContentType=\"{_XmlWriterHelper.EscapeAttribute(ct.Type, false)}\"/>");
                         }
                     }
                     streamWriter.Write("</Types>");

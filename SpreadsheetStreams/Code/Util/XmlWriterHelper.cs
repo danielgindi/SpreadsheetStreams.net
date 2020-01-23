@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml;
 
 namespace SpreadsheetStreams.Util
@@ -16,6 +17,13 @@ namespace SpreadsheetStreams.Util
         private StringBuilder _Sb;
         private StringWriter _StringWriter;
         private XmlWriter _XmlWriter;
+
+        // filters control characters but allows only properly-formed surrogate sequences
+        // Credit to Jeff Atwood: https://stackoverflow.com/questions/397250/unicode-regex-invalid-xml-characters/961504#961504
+        // I've checked this, seems valid.
+        private static Regex _InvalidXmlCharRegex = new Regex(
+            @"(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\uFEFF\uFFFE\uFFFF]",
+            RegexOptions.Compiled);
 
         internal XmlWriterHelper()
         {
@@ -52,9 +60,12 @@ namespace SpreadsheetStreams.Util
 
         #endregion
 
-        internal string EscapeAttribute(string value)
+        internal string EscapeAttribute(string value, bool removeInvalidChars = true)
         {
             if (value == null) return "";
+
+            if (removeInvalidChars)
+                value = RemoveInvalidXmlChars(value);
 
             _Sb.Clear();
 
@@ -66,9 +77,12 @@ namespace SpreadsheetStreams.Util
             return result.Substring(6, result.Length - 10);
         }
 
-        internal string EscapeValue(string value)
+        internal string EscapeValue(string value, bool removeInvalidChars = true)
         {
             if (value == null) return "";
+
+            if (removeInvalidChars)
+                value = RemoveInvalidXmlChars(value);
 
             _Sb.Clear();
 
@@ -76,6 +90,12 @@ namespace SpreadsheetStreams.Util
             _XmlWriter.Flush();
 
             return _Sb.ToString();
+        }
+
+        public static string RemoveInvalidXmlChars(string text, string replacement = "�")
+        {
+            if (text == null || text.Length == 0) return "";
+            return _InvalidXmlCharRegex.Replace(text, replacement);
         }
     }
 }

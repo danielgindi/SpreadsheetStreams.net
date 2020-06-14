@@ -74,6 +74,7 @@ namespace SpreadsheetStreams
         private Stream _CurrentWorksheetPartStream = null;
         private StreamWriter _CurrentWorksheetPartWriter = null;
         private WorksheetInfo _CurrentWorksheetInfo = null;
+        private FrozenPaneState? _CurrentWorksheePane = null;
         private int _RowCount = 0;
         private int _CellCount = 0;
         private List<string> _MergeCells = new List<string>();
@@ -108,8 +109,8 @@ namespace SpreadsheetStreams
 
         #region Public Properties
 
-        public const int MIN_COLUMN_NUMBER = 0;
-        public const int MAX_COLUMN_NUMBER = 16383;
+        public const int MIN_COLUMN_NUMBER = 1;
+        public const int MAX_COLUMN_NUMBER = 16384;
 
         #endregion
 
@@ -131,9 +132,9 @@ namespace SpreadsheetStreams
             if (horzCellCount > 1 || vertCellCount > 1)
             {
                 _MergeCells.Add(
-                    ConvertColumnAddress(_CellCount) + _RowCount +
+                    ConvertColumnAddress(_CellCount + 1) + _RowCount +
                     ":" +
-                    ConvertColumnAddress(_CellCount + (horzCellCount > 1 ? horzCellCount - 1 : 0)) + (_RowCount + (vertCellCount > 1 ? vertCellCount - 1 : 0)));
+                    ConvertColumnAddress(_CellCount + (horzCellCount > 1 ? horzCellCount : 1)) + (_RowCount + (vertCellCount > 1 ? vertCellCount - 1 : 0)));
             }
         }
 
@@ -605,20 +606,20 @@ namespace SpreadsheetStreams
         /// <summary>
         /// Gets the column address (A - XFD)
         /// </summary>
-        /// <param name="columnNumber">Column number (zero-based)</param>
+        /// <param name="columnNumber">Column number (one-based)</param>
         /// <returns>Column address (A - XFD)</returns>
         /// <exception cref="RangeException">Throws an RangeException if the passed column number was out of range</exception>
         public static string ConvertColumnAddress(int columnNumber)
         {
             if (columnNumber > MAX_COLUMN_NUMBER || columnNumber < MIN_COLUMN_NUMBER)
             {
-                throw new Exception($"The column number ({columnNumber}) is out of range. Range is from {MIN_COLUMN_NUMBER} to {MAX_COLUMN_NUMBER} ({(MAX_COLUMN_NUMBER + 1)} columns).");
+                throw new Exception($"The column number ({columnNumber}) is out of range. Range is from {MIN_COLUMN_NUMBER} to {MAX_COLUMN_NUMBER}.");
 
             }
 
             int a = 0, b = 0, c = 0;
             var address = "";
-            for (int i = 0; i <= columnNumber; i++)
+            for (int i = 0; i < columnNumber; i++)
             {
                 if (a > 25)
                 {
@@ -732,7 +733,25 @@ namespace SpreadsheetStreams
                     {
                         _CurrentWorksheetPartWriter.Write($" rightToLeft=\"{(_CurrentWorksheetInfo.RightToLeft == true ? "1" : "0")}\"");
                     }
-                    _CurrentWorksheetPartWriter.Write(" workbookViewId=\"0\"></sheetView></sheetViews>");
+                    _CurrentWorksheetPartWriter.Write(" workbookViewId=\"0\">");
+
+                    if (_CurrentWorksheePane != null &&
+                        (_CurrentWorksheePane.Value.Column > 1 || _CurrentWorksheePane.Value.Row > 1))
+                    {
+                        _CurrentWorksheetPartWriter.Write(@"<pane");
+
+                        if (_CurrentWorksheePane.Value.Column > 1)
+                            _CurrentWorksheetPartWriter.Write($@" xSplit=""{_CurrentWorksheePane.Value.Column - 1}""");
+
+                        if (_CurrentWorksheePane.Value.Row > 1)
+                            _CurrentWorksheetPartWriter.Write($@" ySplit=""{_CurrentWorksheePane.Value.Row - 1}""");
+
+                        _CurrentWorksheetPartWriter.Write($@" topLeftCell=""{ConvertColumnAddress(_CurrentWorksheePane.Value.Column)}{_CurrentWorksheePane.Value.Row}""");
+                        _CurrentWorksheetPartWriter.Write($@" activePane=""bottomRight""");
+                        _CurrentWorksheetPartWriter.Write(@" state=""frozen""/>");
+                    }
+
+                    _CurrentWorksheetPartWriter.Write("</sheetView></sheetViews>");
 
                     _CurrentWorksheetPartWriter.Write("<sheetFormatPr");
 
@@ -840,11 +859,18 @@ namespace SpreadsheetStreams
             _CurrentWorksheetInfo.Path = "/xl/worksheets/sheet" + _CurrentWorksheetInfo.Id + ".xml";
             _WorksheetInfos.Add(_CurrentWorksheetInfo);
 
+            _CurrentWorksheePane = null;
+
             _ShouldBeginWorksheet = true;
             _ShouldEndWorksheet = true;
             _MergeCells.Clear();
 
             _RowCount = 0;
+        }
+
+        public void SetWorksheetPane(FrozenPaneState? pane)
+        {
+            _CurrentWorksheePane = pane;
         }
 
         public override void AddRow(Style style = null, float height = 0f)
@@ -928,7 +954,7 @@ namespace SpreadsheetStreams
         {
             MergeNextCell(horzCellCount, vertCellCount);
 
-            WriteCellHeader(_CellCount++, _RowCount, false, "str", style);
+            WriteCellHeader(_CellCount++ + 1, _RowCount, false, "str", style);
             _CurrentWorksheetPartWriter.Write("<v>" + _XmlWriterHelper.EscapeValue(data) + "</v>");
             WriteCellFooter();
 
@@ -951,7 +977,7 @@ namespace SpreadsheetStreams
                 type = "n";
             }
 
-            WriteCellHeader(_CellCount++, _RowCount, false, type, style);
+            WriteCellHeader(_CellCount++ + 1, _RowCount, false, type, style);
             _CurrentWorksheetPartWriter.Write("<v>" + _XmlWriterHelper.EscapeValue(data) + "</v>");
             WriteCellFooter();
 
@@ -968,7 +994,7 @@ namespace SpreadsheetStreams
         {
             MergeNextCell(horzCellCount, vertCellCount);
 
-            WriteCellHeader(_CellCount++, _RowCount, false, "n", style);
+            WriteCellHeader(_CellCount++ + 1, _RowCount, false, "n", style);
             _CurrentWorksheetPartWriter.Write(string.Format(_Culture, "<v>{0:G}</v>", data));
             WriteCellFooter();
 
@@ -980,7 +1006,7 @@ namespace SpreadsheetStreams
         {
             MergeNextCell(horzCellCount, vertCellCount);
 
-            WriteCellHeader(_CellCount++, _RowCount, false, "n", style);
+            WriteCellHeader(_CellCount++ + 1, _RowCount, false, "n", style);
             _CurrentWorksheetPartWriter.Write(string.Format(_Culture, "<v>{0:G}</v>", data));
             WriteCellFooter();
 
@@ -992,7 +1018,7 @@ namespace SpreadsheetStreams
         {
             MergeNextCell(horzCellCount, vertCellCount);
 
-            WriteCellHeader(_CellCount++, _RowCount, false, "n", style);
+            WriteCellHeader(_CellCount++ + 1, _RowCount, false, "n", style);
             _CurrentWorksheetPartWriter.Write(string.Format(_Culture, "<v>{0:G}</v>", data));
             WriteCellFooter();
 
@@ -1004,7 +1030,7 @@ namespace SpreadsheetStreams
         {
             MergeNextCell(horzCellCount, vertCellCount);
 
-            WriteCellHeader(_CellCount++, _RowCount, false, "n", style);
+            WriteCellHeader(_CellCount++ + 1, _RowCount, false, "n", style);
             _CurrentWorksheetPartWriter.Write(string.Format(_Culture, "<v>{0:G}</v>", data));
             WriteCellFooter();
 
@@ -1016,7 +1042,7 @@ namespace SpreadsheetStreams
         {
             MergeNextCell(horzCellCount, vertCellCount);
 
-            WriteCellHeader(_CellCount++, _RowCount, false, "n", style);
+            WriteCellHeader(_CellCount++ + 1, _RowCount, false, "n", style);
             _CurrentWorksheetPartWriter.Write(string.Format(_Culture, "<v>{0:G}</v>", data));
             WriteCellFooter();
 
@@ -1030,13 +1056,13 @@ namespace SpreadsheetStreams
 
             if (data.Year >= 1900)
             {
-                WriteCellHeader(_CellCount++, _RowCount, false, "n", style);
+                WriteCellHeader(_CellCount++ + 1, _RowCount, false, "n", style);
                 _CurrentWorksheetPartWriter.Write(string.Format(_Culture, "<v>{0:G}</v>", data.ToOADate()));
                 WriteCellFooter();
             }
             else
             {
-                WriteCellHeader(_CellCount++, _RowCount, true, null, style);
+                WriteCellHeader(_CellCount++ + 1, _RowCount, true, null, style);
             }
 
             if (horzCellCount > 1)
@@ -1047,7 +1073,7 @@ namespace SpreadsheetStreams
         {
             MergeNextCell(horzCellCount, vertCellCount);
 
-            WriteCellHeader(_CellCount++, _RowCount, false, "str", style);
+            WriteCellHeader(_CellCount++ + 1, _RowCount, false, "str", style);
             _CurrentWorksheetPartWriter.Write("<f>" + _XmlWriterHelper.EscapeValue(formula) + "</f>");
             WriteCellFooter();
 

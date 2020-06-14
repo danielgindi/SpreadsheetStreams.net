@@ -21,9 +21,21 @@ namespace Samples
             using (var file = new FileStream("sample.xlsx", FileMode.Create))
             using (var writer = new ExcelSpreadsheetWriter(file, System.IO.Compression.CompressionLevel.Optimal))
                 PopulateData(writer);
+
+            using (var file = new FileStream("sample_frozen1.xlsx", FileMode.Create))
+            using (var writer = new ExcelSpreadsheetWriter(file, System.IO.Compression.CompressionLevel.Optimal))
+                PopulateData(writer, new FrozenPaneState { Column = 3, Row = 3 });
+
+            using (var file = new FileStream("sample_frozen2.xlsx", FileMode.Create))
+            using (var writer = new ExcelSpreadsheetWriter(file, System.IO.Compression.CompressionLevel.Optimal))
+                PopulateData(writer, new FrozenPaneState { Column = 1, Row = 2 });
+
+            using (var file = new FileStream("sample_frozen3.xlsx", FileMode.Create))
+            using (var writer = new ExcelSpreadsheetWriter(file, System.IO.Compression.CompressionLevel.Optimal))
+                PopulateData(writer, new FrozenPaneState { Column = 2, Row = 1 });
         }
 
-        static void PopulateData(SpreadsheetWriter writer)
+        static void PopulateData(SpreadsheetWriter writer, FrozenPaneState? sheet1Pane = null)
         {
             var styleCenterBorder = new Style
             {
@@ -86,6 +98,9 @@ namespace Samples
                 DefaultRowHeight = 25f,
                 Name = "ws1"
             });
+
+            if (writer is ExcelSpreadsheetWriter ewriter)
+                ewriter.SetWorksheetPane(sheet1Pane);
 
             for (int i = 0; i < 100; i++)
             {

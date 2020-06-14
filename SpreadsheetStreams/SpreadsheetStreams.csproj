@@ -42,7 +42,7 @@
     <PackageProjectUrl></PackageProjectUrl>
     <RepositoryUrl>https://github.com/danielgindi/SpreadsheetStreams.net</RepositoryUrl>
     <PackageLicenseUrl>https://github.com/danielgindi/SpreadsheetStreams.net/blob/master/LICENSE</PackageLicenseUrl>
-    <Version>1.0.11</Version>
+    <Version>1.0.12</Version>
   </PropertyGroup>
   <ItemGroup>
     <Folder Include="Properties\" />

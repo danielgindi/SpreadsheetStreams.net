@@ -868,7 +868,7 @@ namespace SpreadsheetStreams
             _RowCount = 0;
         }
 
-        public void SetWorksheetPane(FrozenPaneState? pane)
+        public void SetWorksheetFrozenPane(FrozenPaneState? pane)
         {
             _CurrentWorksheePane = pane;
         }

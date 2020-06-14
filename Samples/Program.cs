@@ -100,7 +100,7 @@ namespace Samples
             });
 
             if (writer is ExcelSpreadsheetWriter ewriter)
-                ewriter.SetWorksheetPane(sheet1Pane);
+                ewriter.SetWorksheetFrozenPane(sheet1Pane);
 
             for (int i = 0; i < 100; i++)
             {

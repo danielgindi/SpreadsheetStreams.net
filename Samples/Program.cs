@@ -55,6 +55,19 @@ namespace Samples
                 },
             };
 
+            var styleGrayBgWrap = new Style
+            {
+                Fill = new Fill
+                {
+                    Pattern = FillPattern.Solid,
+                    PatternColor = Color.LightGray,
+                },
+                Alignment = new Alignment
+                {
+                    WrapText = true
+                }
+            };
+
             var styleYellowBg = new Style
             {
                 Fill = new Fill
@@ -86,6 +99,7 @@ namespace Samples
 
             writer.RegisterStyle(styleCenterBorder);
             writer.RegisterStyle(styleGrayBg);
+            writer.RegisterStyle(styleGrayBgWrap);
             writer.RegisterStyle(styleYellowBg);
             writer.RegisterStyle(stylePatternBg);
             writer.RegisterStyle(styleNumberFormatPercent);
@@ -110,6 +124,14 @@ namespace Samples
                 {
                     writer.AddCell("over yellow", styleYellowBg, 2);
                     writer.AddCell("centered w/ borders", styleCenterBorder, 3);
+                }
+                if (i == 10)
+                {
+                    writer.AddCell("text that should wrap", styleGrayBgWrap);
+                    writer.AddCell("text that should wrap\nand has two lines", styleGrayBgWrap);
+                    writer.AddCell("text that should wrap\nand has three lines\nof text", styleGrayBgWrap);
+                    writer.AddCell(0.8357, styleNumberFormatPercent);
+                    writer.AddCell(83.57, styleNumberFormatCurrency);
                 }
                 else
                 {

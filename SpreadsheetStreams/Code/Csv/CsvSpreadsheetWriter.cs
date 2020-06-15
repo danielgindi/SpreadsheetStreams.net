@@ -157,7 +157,7 @@ namespace SpreadsheetStreams
             }
         }
 
-        public override void AddRow(Style style = null, float height = 0f)
+        public override void AddRow(Style style = null, float height = 0f, bool autoFit = true)
         {
             if (!_ShouldEndWorksheet)
             {

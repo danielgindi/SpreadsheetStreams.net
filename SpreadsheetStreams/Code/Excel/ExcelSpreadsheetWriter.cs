@@ -873,7 +873,7 @@ namespace SpreadsheetStreams
             _CurrentWorksheePane = pane;
         }
 
-        public override void AddRow(Style style = null, float height = 0f)
+        public override void AddRow(Style style = null, float height = 0f, bool autoFit = true)
         {
             if (!_ShouldEndWorksheet)
             {
@@ -899,9 +899,17 @@ namespace SpreadsheetStreams
             _CurrentWorksheetPartWriter.Write($"<row r=\"{_RowCount}\"");
 
             if (height != 0f && height != _CurrentWorksheetInfo.DefaultRowHeight)
-                _CurrentWorksheetPartWriter.Write($" customHeight=\"1\" ht=\"{height.ToString("G", _Culture)}\"");
+            {
+                if (!autoFit)
+                    _CurrentWorksheetPartWriter.Write(" customHeight=\"1\"");
+
+                _CurrentWorksheetPartWriter.Write($" ht=\"{height.ToString("G", _Culture)}\"");
+            }
             else if (_CurrentWorksheetInfo.DefaultRowHeight != null)
-                _CurrentWorksheetPartWriter.Write(" customHeight=\"1\"");
+            {
+                if (!autoFit)
+                    _CurrentWorksheetPartWriter.Write(" customHeight=\"1\"");
+            }
 
             if (style != null)
                 _CurrentWorksheetPartWriter.Write($" s=\"{GetStyleId(style)}\"");

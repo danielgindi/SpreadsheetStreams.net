@@ -58,7 +58,7 @@ namespace SpreadsheetStreams
 
         public abstract void NewWorksheet(WorksheetInfo info);
 
-        public abstract void AddRow(Style style = null, float height = 0f);
+        public abstract void AddRow(Style style = null, float height = 0f, bool autoFit = true);
 
         public abstract void Finish();
 

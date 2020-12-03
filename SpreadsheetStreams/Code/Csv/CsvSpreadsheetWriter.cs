@@ -65,7 +65,6 @@ namespace SpreadsheetStreams
         public override string FileExtension => "csv";
         public override string FileContentType => "application/vnd.ms-excel";
         public override bool IsFlatFormat => true;
-        public bool ShouldWriteBOM { get; set; } = true;
 
         #endregion
 
@@ -129,11 +128,6 @@ namespace SpreadsheetStreams
         {
             if (_WroteFileStart) return;
             _WroteFileStart = true;
-
-            if (OutputStream != null && ShouldWriteBOM)
-            {
-                OutputStream.Write(_FileEncoding.GetPreamble(), 0, _FileEncoding.GetPreamble().Length);
-            }
         }
 
         #endregion

@@ -191,14 +191,16 @@ namespace SpreadsheetStreams
 
         #region SpreadsheetWriter - Cell methods
 
+        private static char[] s_CharsForEscape = new char[] { '\n', '\r', '"', ',' };
+
         public override void AddCell(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(string.Format(@"""{0}"",", CsvEscape(data)));
+            Write(data.IndexOfAny(s_CharsForEscape) == -1 ? data + "," : string.Format(@"""{0}"",", CsvEscape(data)));
         }
 
         public override void AddCellStringAutoType(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(string.Format(@"""{0}"",", CsvEscape(data)));
+            Write(data.IndexOfAny(s_CharsForEscape) == -1 ? data + "," : string.Format(@"""{0}"",", CsvEscape(data)));
         }
 
         public override void AddCellForcedString(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)

@@ -14,7 +14,7 @@ namespace SpreadsheetStreams
     {
         #region Constructors
 
-        public ExcelSpreadsheetWriter(Stream outputStream, CompressionLevel compressionLevel = CompressionLevel.Fastest, bool leaveOpenAfterFinish = false)
+        public ExcelSpreadsheetWriter(Stream outputStream, CompressionLevel compressionLevel = CompressionLevel.Fastest, bool leaveOpen = false)
             : base(outputStream ?? new MemoryStream())
         {
             if (outputStream.GetType().FullName == "System.Web.HttpResponseStream")
@@ -22,7 +22,7 @@ namespace SpreadsheetStreams
                 outputStream = new WriteStreamWrapper(outputStream);
             }
 
-            _Package = new PackageWriteStream(outputStream, leaveOpenAfterFinish);
+            _Package = new PackageWriteStream(outputStream, leaveOpen);
 
             _CompressionLevel = compressionLevel;
         }

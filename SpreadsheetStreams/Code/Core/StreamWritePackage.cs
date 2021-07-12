@@ -14,9 +14,9 @@ namespace SpreadsheetStreams
         private List<ContentType> _ContentTypes = new List<ContentType>();
         private Dictionary<string, List<Relationship>> _PartRelationships = new Dictionary<string, List<Relationship>>();
 
-        internal PackageWriteStream(Stream outputStream)
+        internal PackageWriteStream(Stream outputStream, bool leaveOpen)
         {
-            _ZipArchive = new ZipArchive(outputStream, ZipArchiveMode.Create);
+            _ZipArchive = new ZipArchive(outputStream, ZipArchiveMode.Create, leaveOpen);
         }
 
         #region IDisposable

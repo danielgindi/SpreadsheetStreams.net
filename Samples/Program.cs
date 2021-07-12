@@ -33,6 +33,19 @@ namespace Samples
             using (var file = new FileStream("sample_frozen3.xlsx", FileMode.Create))
             using (var writer = new ExcelSpreadsheetWriter(file, System.IO.Compression.CompressionLevel.Optimal))
                 PopulateData(writer, new FrozenPaneState { Column = 2, Row = 1 });
+
+            using (var memoryStream = new MemoryStream())
+            using (var writer =
+                new ExcelSpreadsheetWriter(memoryStream, System.IO.Compression.CompressionLevel.Optimal, true))
+            {
+                PopulateData(writer, new FrozenPaneState { Column = 4, Row = 1 });
+
+                memoryStream.Position = 0;
+                using(var file = new FileStream("sample_frozen_memorystream4.xlsx", FileMode.Create))
+                    memoryStream.CopyTo(file);
+            }
+                
+
         }
 
         static void PopulateData(SpreadsheetWriter writer, FrozenPaneState? sheet1Pane = null)

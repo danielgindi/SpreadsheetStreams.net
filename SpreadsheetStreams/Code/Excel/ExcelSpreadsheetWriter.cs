@@ -1010,6 +1010,20 @@ namespace SpreadsheetStreams
                 FillHorzCellCount(horzCellCount);
         }
 
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public override void AddCell(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        {
+            MergeNextCell(horzCellCount, vertCellCount);
+
+            WriteCellHeader(_CellCount++ + 1, _RowCount, false, "n", style);
+            _CurrentWorksheetPartWriter.Write(string.Format(_Culture, "<v>{0:G}</v>", data));
+            WriteCellFooter();
+
+            if (horzCellCount > 1)
+                FillHorzCellCount(horzCellCount);
+        }
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
+
         public override void AddCell(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             MergeNextCell(horzCellCount, vertCellCount);
@@ -1021,6 +1035,20 @@ namespace SpreadsheetStreams
             if (horzCellCount > 1)
                 FillHorzCellCount(horzCellCount);
         }
+
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public override void AddCell(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        {
+            MergeNextCell(horzCellCount, vertCellCount);
+
+            WriteCellHeader(_CellCount++ + 1, _RowCount, false, "n", style);
+            _CurrentWorksheetPartWriter.Write(string.Format(_Culture, "<v>{0:G}</v>", data));
+            WriteCellFooter();
+
+            if (horzCellCount > 1)
+                FillHorzCellCount(horzCellCount);
+        }
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
 
         public override void AddCell(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {

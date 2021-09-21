@@ -74,7 +74,15 @@ namespace SpreadsheetStreams
 
         public abstract void AddCell(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public abstract void AddCell(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
+
         public abstract void AddCell(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public abstract void AddCell(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
 
         public abstract void AddCell(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 

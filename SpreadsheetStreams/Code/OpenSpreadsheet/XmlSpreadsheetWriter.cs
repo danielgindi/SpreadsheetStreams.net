@@ -679,12 +679,30 @@ namespace SpreadsheetStreams
             Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public override void AddCell(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        {
+            string merge = GetCellMergeString(horzCellCount, vertCellCount);
+            string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
+            Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+        }
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
+
         public override void AddCell(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
             Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
+
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public override void AddCell(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        {
+            string merge = GetCellMergeString(horzCellCount, vertCellCount);
+            string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
+            Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+        }
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
 
         public override void AddCell(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {

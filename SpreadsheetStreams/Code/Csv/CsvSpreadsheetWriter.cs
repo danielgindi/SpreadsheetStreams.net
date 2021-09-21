@@ -213,10 +213,24 @@ namespace SpreadsheetStreams
             Write(string.Format(_Culture, "{0:G},", data));
         }
 
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public override void AddCell(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        {
+            Write(string.Format(_Culture, "{0:G},", data));
+        }
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
+
         public override void AddCell(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             Write(string.Format(_Culture, "{0:G},", data));
         }
+
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public override void AddCell(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        {
+            Write(string.Format(_Culture, "{0:G},", data));
+        }
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
 
         public override void AddCell(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {

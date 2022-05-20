@@ -595,7 +595,12 @@ namespace SpreadsheetStreams
 
                 foreach (var item in _WorksheetInfos)
                 {
-                    writer.Write($"<sheet r:id=\"rId{item.Id}\" sheetId=\"{item.Id}\" name=\"{_XmlWriterHelper.EscapeAttribute(item.Name ?? $"Worksheet{item.Id}")}\"/>");
+                    var name = item.Name ?? $"Worksheet{item.Id}";
+
+                    // Excel limits to 31 characters. Otherwise it's an error
+                    name = name.Substring(0, Math.Min(name.Length, 31));
+
+                    writer.Write($"<sheet r:id=\"rId{item.Id}\" sheetId=\"{item.Id}\" name=\"{_XmlWriterHelper.EscapeAttribute(name)}\"/>");
                 }
 
                 writer.Write("</sheets>");

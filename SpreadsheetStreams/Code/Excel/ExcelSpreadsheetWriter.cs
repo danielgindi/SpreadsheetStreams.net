@@ -668,12 +668,16 @@ namespace SpreadsheetStreams
             string workbookPath = "/xl/workbook.xml";
             string stylesheetPath = "/xl/styles.xml";
             string sharedStringsPath = "/xl/sharedStrings.xml";
+            string docPropsCorePath = "/docProps/core.xml";
+            string docPropsAppPath = "/docProps/app.xml";
 
             var idCounter = _WorksheetInfos.Count + 1;
 
             int ridWb = idCounter++;
             int ridStyles = idCounter++;
             int ridSharedStrings = idCounter++;
+            int ridDocPropsCore = idCounter++;
+            int ridDocPropsApp = idCounter++;
 
             var wbEntry = _Package.CreateStream(workbookPath, _CompressionLevel);
             using (var stream = wbEntry.Open())
@@ -708,6 +712,130 @@ namespace SpreadsheetStreams
             {
                 _Package.AddPartRelationship(workbookPath, ws.Path, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet", "rId" + ws.Id);
                 _Package.AddContentType(ws.Path, "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml");
+            }
+
+            if (SpreadsheetInfo != null)
+            {
+                var docPropsCoreEntry = _Package.CreateStream(docPropsCorePath, _CompressionLevel);
+                _Package.AddPackageRelationship(docPropsCorePath, "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", "rId" + ridDocPropsCore);
+                _Package.AddContentType(docPropsCorePath, "application/vnd.openxmlformats-package.core-properties+xml");
+
+                using (var stream = docPropsCoreEntry.Open())
+                using (var writer = new StreamWriter(stream))
+                {
+                    writer.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
+                    writer.Write("<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\"" + 
+                        " xmlns:dc=\"http://purl.org/dc/elements/1.1/\"" +
+                        " xmlns:dcterms=\"http://purl.org/dc/terms/\"" + 
+                        " xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\"" +
+                        " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
+
+                    if (SpreadsheetInfo.Title != null)
+                    {
+                        writer.Write($"<dc:title>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Title)}</dc:title>");
+                    }
+
+                    if (SpreadsheetInfo.Subject != null)
+                    {
+                        writer.Write($"<dc:subject>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Subject)}</dc:subject>");
+                    }
+
+                    if (SpreadsheetInfo.Author != null)
+                    {
+                        writer.Write($"<dc:creator>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Author)}</dc:creator>");
+                    }
+
+                    if (SpreadsheetInfo.Keywords != null)
+                    {
+                        writer.Write($"<cp:keywords>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Keywords)}</cp:keywords>");
+                    }
+
+                    if (SpreadsheetInfo.Comments != null)
+                    {
+                        writer.Write($"<dc:description>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Comments)}</dc:description>");
+                    }
+
+                    if (SpreadsheetInfo.Status != null)
+                    {
+                        writer.Write($"<cp:contentStatus>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Status)}</cp:contentStatus>");
+                    }
+
+                    if (SpreadsheetInfo.Category != null)
+                    {
+                        writer.Write($"<cp:category>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Category)}</cp:category>");
+                    }
+
+                    if (SpreadsheetInfo.LastModifiedBy != null)
+                    {
+                        writer.Write($"<cp:lastModifiedBy>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.LastModifiedBy)}</cp:lastModifiedBy>");
+                    }
+
+                    if (SpreadsheetInfo.CreatedOn != null)
+                    {
+                        writer.Write($"<dcterms:created xsi:type=\"dcterms:W3CDTF\">{SpreadsheetInfo.CreatedOn.Value.ToUniversalTime().ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'Z'")}</dcterms:created>");
+                    }
+
+                    if (SpreadsheetInfo.ModifiedOn != null)
+                    {
+                        writer.Write($"<dcterms:modified xsi:type=\"dcterms:W3CDTF\">{SpreadsheetInfo.ModifiedOn.Value.ToUniversalTime().ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'Z'")}</dcterms:modified>");
+                    }
+
+                    writer.Write("</cp:coreProperties>");
+                }
+
+                var docPropsAppEntry = _Package.CreateStream(docPropsAppPath, _CompressionLevel);
+                _Package.AddPackageRelationship(docPropsAppPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", "rId" + ridDocPropsApp);
+                _Package.AddContentType(docPropsAppPath, "application/vnd.openxmlformats-officedocument.extended-properties+xml");
+
+                using (var stream = docPropsAppEntry.Open())
+                using (var writer = new StreamWriter(stream))
+                {
+                    writer.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
+                    writer.Write("<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"" +
+                        " xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\">");
+
+                    if (SpreadsheetInfo.Application != null)
+                    {
+                        writer.Write($"<Application>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Application)}</Application>");
+                    }
+
+                    if (SpreadsheetInfo.ScaleCrop != null)
+                    {
+                        writer.Write($"<ScaleCrop>{(SpreadsheetInfo.ScaleCrop.Value ? "true" : "false")}</ScaleCrop>");
+                    }
+
+                    if (SpreadsheetInfo.Manager != null)
+                    {
+                        writer.Write($"<Manager>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Manager)}</Manager>");
+                    }
+
+                    if (SpreadsheetInfo.Company != null)
+                    {
+                        writer.Write($"<Company>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Company)}</Company>");
+                    }
+
+                    if (SpreadsheetInfo.LinksUpToDate != null)
+                    {
+                        writer.Write($"<LinksUpToDate>{(SpreadsheetInfo.LinksUpToDate.Value ? "true" : "false")}</LinksUpToDate>");
+                    }
+
+                    if (SpreadsheetInfo.SharedDoc != null)
+                    {
+                        writer.Write($"<SharedDoc>{(SpreadsheetInfo.SharedDoc.Value ? "true" : "false")}</SharedDoc>");
+                    }
+
+                    if (SpreadsheetInfo.HyperlinksChanged != null)
+                    {
+                        writer.Write($"<HyperlinksChanged>{(SpreadsheetInfo.HyperlinksChanged.Value ? "true" : "false")}</HyperlinksChanged>");
+                    }
+
+                    if (SpreadsheetInfo.AppVersion != null)
+                    {
+                        writer.Write($"<AppVersion>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.AppVersion)}</AppVersion>");
+                    }
+
+                    writer.Write("</Properties>");
+                }
             }
 
             _Package.CommitRelationships(_CompressionLevel);

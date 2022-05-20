@@ -46,6 +46,8 @@ namespace SpreadsheetStreams
         public abstract string FileContentType { get; }
         public abstract bool IsFlatFormat { get; }
 
+        public SpreadsheetInfo SpreadsheetInfo = new SpreadsheetInfo();
+
         #endregion
 
         #region Syling

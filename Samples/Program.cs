@@ -1,4 +1,5 @@
 ﻿using SpreadsheetStreams;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -117,7 +118,12 @@ namespace Samples
             writer.RegisterStyle(stylePatternBg);
             writer.RegisterStyle(styleNumberFormatPercent);
             writer.RegisterStyle(styleNumberFormatCurrency);
-            
+
+            writer.SpreadsheetInfo.Application = "SpreadsheetStreams.net";
+            writer.SpreadsheetInfo.Author = "Test;Program";
+            writer.SpreadsheetInfo.CreatedOn = DateTime.UtcNow;
+            writer.SpreadsheetInfo.Comments = "Some comments here\nAnother line of comments";
+
             writer.NewWorksheet(new WorksheetInfo
             {
                 DefaultColumnWidth = 40f,

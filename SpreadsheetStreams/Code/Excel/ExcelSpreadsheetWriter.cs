@@ -7,6 +7,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace SpreadsheetStreams
 {
@@ -596,6 +597,12 @@ namespace SpreadsheetStreams
                 foreach (var item in _WorksheetInfos)
                 {
                     var name = item.Name ?? $"Worksheet{item.Id}";
+
+                    // Remove invalid characters
+                    name = Regex.Replace(name, "[:/\\?[\\]]", " ");
+
+                    // Cannot begin/end with an apostrophe
+                    name = Regex.Replace(name, "^'+|'+$", "");
 
                     // Excel limits to 31 characters. Otherwise it's an error
                     name = name.Substring(0, Math.Min(name.Length, 31));

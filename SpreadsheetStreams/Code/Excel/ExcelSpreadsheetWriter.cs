@@ -629,26 +629,17 @@ namespace SpreadsheetStreams
 
             }
 
-            int a = 0, b = 0, c = 0;
-            var address = "";
-            for (int i = 0; i < columnNumber; i++)
+            const int @base = 26;
+            columnNumber -= 1;
+            
+            var address = string.Empty; 
+            
+            do 
             {
-                if (a > 25)
-                {
-                    b++;
-                    a = 0;
-                }
-                if (b > 25)
-                {
-                    c++;
-                    b = 0;
-                }
-                a++;
-            }
-
-            if (c > 0) { address += ((char)(c + 64)); }
-            if (b > 0) { address += ((char)(b + 64)); }
-            address += ((char)(a + 64));
+                address = Convert.ToChar('A' + columnNumber % @base) + address;
+                columnNumber = columnNumber / @base - 1; 
+            } 
+            while (columnNumber >= 0);
 
             return address;
         }

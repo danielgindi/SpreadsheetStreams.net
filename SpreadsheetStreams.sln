@@ -1,11 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.572
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Samples", "Samples\Samples.csproj", "{BD3E902F-AB43-4BB7-A5FB-3D57BA469240}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpreadsheetStreams", "SpreadsheetStreams\SpreadsheetStreams.csproj", "{34B2EAC9-F35A-48AF-A89E-C13D76451023}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{5F00C8FD-053B-44FF-841F-F2CD03049F71}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpreadsheetStreams.ExcelTests", "Tests\SpreadsheetStreams.ExcelTests\SpreadsheetStreams.ExcelTests.csproj", "{F332665D-87A3-44D0-999E-97EE25DDF71C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,9 +25,16 @@ Global
 		{34B2EAC9-F35A-48AF-A89E-C13D76451023}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{34B2EAC9-F35A-48AF-A89E-C13D76451023}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{34B2EAC9-F35A-48AF-A89E-C13D76451023}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F332665D-87A3-44D0-999E-97EE25DDF71C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F332665D-87A3-44D0-999E-97EE25DDF71C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F332665D-87A3-44D0-999E-97EE25DDF71C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F332665D-87A3-44D0-999E-97EE25DDF71C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F332665D-87A3-44D0-999E-97EE25DDF71C} = {5F00C8FD-053B-44FF-841F-F2CD03049F71}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C27CB6A4-5719-411D-93F7-0E3D42FFC9A1}

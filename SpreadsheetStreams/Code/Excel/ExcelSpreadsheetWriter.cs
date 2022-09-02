@@ -1059,6 +1059,20 @@ namespace SpreadsheetStreams
             _ShouldEndRow = true;
         }
 
+        public void SkipRow()
+        {
+            SkipRows(1);
+        }
+
+        public void SkipRows(int count)
+        {
+            WritePendingBeginWorksheet();
+            WritePendingEndRow();
+
+            _RowCount += count;
+            _CellCount = 0;
+        }
+
         private void WriteCellHeader(int cellIndex, int rowIndex, bool closed, string type, Style style = null)
         {
             _CurrentWorksheetPartWriter.Write($"<c r=\"{ConvertColumnAddress(cellIndex)}{rowIndex}\"");
@@ -1097,6 +1111,16 @@ namespace SpreadsheetStreams
         #endregion
 
         #region SpreadsheetWriter - Cell methods
+
+        public void SkipCell()
+        {
+            SkipCells(1);
+        }
+
+        public void SkipCells(int count)
+        {
+            _CellCount += count;
+        }
 
         public override void AddCell(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {

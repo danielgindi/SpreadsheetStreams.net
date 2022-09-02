@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading.Tasks;
 
 [assembly: CLSCompliant(true)]
 
@@ -34,7 +35,7 @@ namespace SpreadsheetStreams
         {
             if (disposing)
             {
-                Finish();
+                FinishAsync();
             }
         }
 
@@ -58,70 +59,71 @@ namespace SpreadsheetStreams
         
         #region Document Lifespan (public)
 
-        public abstract void NewWorksheet(WorksheetInfo info);
+        public abstract Task NewWorksheetAsync(WorksheetInfo info);
 
-        public abstract void SkipRow();
+        public abstract Task SkipRowAsync();
 
-        public abstract void SkipRows(int count);
+        public abstract Task SkipRowsAsync(int count);
 
-        public abstract void AddRow(Style style = null, float height = 0f, bool autoFit = true);
+        public abstract Task AddRowAsync(Style style = null, float height = 0f, bool autoFit = true);
 
-        public abstract void Finish();
+        public abstract Task FinishAsync();
 
         #endregion
 
         #region Cells
 
-        public abstract void SkipCell();
-        public abstract void SkipCells(int count);
+        public abstract Task SkipCellAsync();
+        
+        public abstract Task SkipCellsAsync(int count);
             
-        public abstract void AddCell(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public abstract void AddCellStringAutoType(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellStringAutoTypeAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public abstract void AddCellForcedString(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellForcedStringAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public abstract void AddCell(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
-
-#pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public abstract void AddCell(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
-#pragma warning restore CS3001 // Argument type is not CLS-compliant
-
-        public abstract void AddCell(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public abstract void AddCell(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public abstract void AddCell(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public abstract void AddCell(double data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public abstract Task AddCellAsync(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public abstract void AddCell(decimal data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public abstract void AddCell(DateTime data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(double data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public virtual void AddCell(object data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public abstract Task AddCellAsync(decimal data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+
+        public abstract Task AddCellAsync(DateTime data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+
+        public virtual async Task AddCellAsync(object data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (data is Int32)
-                AddCell((Int32)data, style, horzCellCount, vertCellCount);
+                await AddCellAsync((Int32)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else if (data is Int64)
-                AddCell((Int64)data, style, horzCellCount, vertCellCount);
+                await AddCellAsync((Int64)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else if (data is float)
-                AddCell((float)data, style, horzCellCount, vertCellCount);
+                await AddCellAsync((float)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else if (data is double)
-                AddCell((double)data, style, horzCellCount, vertCellCount);
+                await AddCellAsync((double)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else if (data is decimal)
-                AddCell((decimal)data, style, horzCellCount, vertCellCount);
+                await AddCellAsync((decimal)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else if (data is DateTime)
-                AddCell((DateTime)data, style, horzCellCount, vertCellCount);
+                await AddCellAsync((DateTime)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else if (data is string)
-                AddCell((string)data, style, horzCellCount, vertCellCount);
+                await AddCellAsync((string)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else
-                AddCell(data.ToString(), style, horzCellCount, vertCellCount);
+                await AddCellAsync(data.ToString(), style, horzCellCount, vertCellCount).ConfigureAwait(false);
         }
 
-        public abstract void AddCellFormula(string formula, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellFormulaAsync(string formula, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 
         #endregion
     }

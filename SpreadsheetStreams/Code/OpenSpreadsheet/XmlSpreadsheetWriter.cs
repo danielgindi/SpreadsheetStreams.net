@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace SpreadsheetStreams
 {
@@ -100,17 +101,17 @@ namespace SpreadsheetStreams
             if (horz < 2 && vert < 2) return "";
 
             return (horz > 1 && vert > 1) ?
-                    string.Format(_Culture, @" ss:MergeAcross=""{0}"" ss:MergeDown=""{1}""", horz - 1, vert - 1) :
+                    $@" ss:MergeAcross=""{horz - 1}"" ss:MergeDown=""{vert - 1}""" :
                     (
                         (horz > 1) ?
-                        string.Format(_Culture, @" ss:MergeAcross=""{0}""", horz - 1) :
-                        string.Format(_Culture, @" ss:MergeDown=""{0}""", vert - 1)
+                        $@" ss:MergeAcross=""{horz - 1}""" :
+                        $@" ss:MergeDown=""{vert - 1}"""
                     );
         }
-
-        private void Write(string data)
+        
+        private async Task WriteAsync(string data)
         {
-            _Writer.Write(data);
+            await _Writer.WriteAsync(data).ConfigureAwait(false);
         }
 
         private string GetStyleId(Style style, bool allowRegister = true)
@@ -154,15 +155,15 @@ namespace SpreadsheetStreams
             }
         }
 
-        private void WriteStyle(Style style, string id)
+        private async Task WriteStyleAsync(Style style, string id)
         {
-            Write(string.Format(@"<ss:Style ss:ID=""{0}"">", id));
+            await WriteAsync($@"<ss:Style ss:ID=""{id}"">");
 
             if (style.Alignment != null)
             {
                 var align = style.Alignment.Value;
 
-                Write(@"<ss:Alignment"); // Opening tag
+                await WriteAsync(@"<ss:Alignment"); // Opening tag
 
                 string horz = null;
                 switch (align.Horizontal)
@@ -179,10 +180,10 @@ namespace SpreadsheetStreams
                 }
 
                 if (horz != null)
-                    Write(string.Format(@" ss:Horizontal=""{0}""", horz));
+                    await WriteAsync(string.Format(@" ss:Horizontal=""{0}""", horz));
 
                 if (align.Indent > 0) // 0 is default
-                    Write(string.Format(@" ss:Indent=""{0}""", align.Indent));
+                    await WriteAsync(string.Format(@" ss:Indent=""{0}""", align.Indent));
 
                 string readingOrder = null;
                 switch (align.ReadingOrder)
@@ -194,13 +195,13 @@ namespace SpreadsheetStreams
                 }
 
                 if (readingOrder != null)
-                    Write(string.Format(@" ss:ReadingOrder=""{0}""", readingOrder));
+                    await WriteAsync(string.Format(@" ss:ReadingOrder=""{0}""", readingOrder));
 
                 if (align.Rotate != 0.0) // 0 is default
-                    Write(string.Format(_Culture, @" ss:Rotate=""{0}""", align.Rotate));
+                    await WriteAsync(string.Format(_Culture, @" ss:Rotate=""{0}""", align.Rotate));
 
                 if (align.ShrinkToFit) // FALSE is default
-                    Write(@" ss:ShrinkToFit=""1""");
+                    await WriteAsync(@" ss:ShrinkToFit=""1""");
 
                 string vert = null;
                 switch (align.Vertical)
@@ -216,33 +217,33 @@ namespace SpreadsheetStreams
                 }
 
                 if (vert != null)
-                    Write(string.Format(@" ss:Vertical=""{0}""", vert));
+                    await WriteAsync(string.Format(@" ss:Vertical=""{0}""", vert));
 
                 if (align.VerticalText) // FALSE is default
                 {
-                    Write(@" ss:VerticalText=""1""");
+                    await WriteAsync(@" ss:VerticalText=""1""");
                 }
 
                 if (align.WrapText) // FALSE is default
                 {
-                    Write(@" ss:WrapText=""1""");
+                    await WriteAsync(@" ss:WrapText=""1""");
                 }
 
-                Write("/>"); // Closing tag
+                await WriteAsync("/>"); // Closing tag
             }
 
             if (style.NumberFormat.Type != NumberFormatType.None)
             {
-                Write(string.Format(@"<ss:NumberFormat ss:Format=""{0}""/>", _XmlWriterHelper.EscapeAttribute(ConvertNumberFormat(style.NumberFormat))));
+                await WriteAsync(string.Format(@"<ss:NumberFormat ss:Format=""{0}""/>", _XmlWriterHelper.EscapeAttribute(ConvertNumberFormat(style.NumberFormat))));
             }
 
             if (style.Borders != null && style.Borders.Count > 0)
             {
-                Write(@"<ss:Borders>"); // Opening tag
+                await WriteAsync(@"<ss:Borders>"); // Opening tag
 
                 foreach (Border border in style.Borders)
                 {
-                    Write(@"<ss:Border"); // Opening tag
+                    await WriteAsync(@"<ss:Border"); // Opening tag
 
                     string Position = null;
                     switch (border.Position)
@@ -267,11 +268,11 @@ namespace SpreadsheetStreams
                             Position = @"DiagonalRight";
                             break;
                     }
-                    Write($@" ss:Position=""{Position}"""); // Required
+                    await WriteAsync($@" ss:Position=""{Position}"""); // Required
 
                     if (!ColorHelper.IsTransparentOrEmpty(border.Color))
                     {
-                        Write($@" ss:Color=""#{ColorHelper.GetHexRgb(border.Color)}""");
+                        await WriteAsync($@" ss:Color=""#{ColorHelper.GetHexRgb(border.Color)}""");
                     }
 
                     string LineStyle = null;
@@ -304,32 +305,32 @@ namespace SpreadsheetStreams
                     }
                     if (LineStyle != null)
                     {
-                        Write($@" ss:LineStyle=""{LineStyle}""");
+                        await WriteAsync($@" ss:LineStyle=""{LineStyle}""");
                     }
 
                     if (border.Weight > 0.0) // 0 is default
                     {
-                        Write(string.Format(_Culture, @" ss:Weight=""{0}""", border.Weight));
+                        await WriteAsync(string.Format(_Culture, @" ss:Weight=""{0}""", border.Weight));
                     }
 
-                    Write("/>"); // Closing tag
+                    await WriteAsync("/>"); // Closing tag
                 }
 
-                Write("</ss:Borders>"); // Closing tag
+                await WriteAsync("</ss:Borders>"); // Closing tag
             }
 
             if (style.Fill != null)
             {
                 var fill = style.Fill.Value;
 
-                Write(@"<ss:Interior"); // Opening tag
+                await WriteAsync(@"<ss:Interior"); // Opening tag
 
                 var bgColor = fill.Color;
                 if (fill.Pattern == FillPattern.Solid && bgColor == Color.Empty)
                     bgColor = fill.PatternColor;
 
                 if (!ColorHelper.IsTransparentOrEmpty(bgColor))
-                    Write($@" ss:Color=""#{ColorHelper.GetHexRgb(bgColor)}""");
+                    await WriteAsync($@" ss:Color=""#{ColorHelper.GetHexRgb(bgColor)}""");
 
                 string pattern = null;
                 switch (fill.Pattern)
@@ -356,50 +357,50 @@ namespace SpreadsheetStreams
                 }
 
                 if (pattern != null)
-                    Write($@" ss:Pattern=""{pattern}""");
+                    await WriteAsync($@" ss:Pattern=""{pattern}""");
 
                 if (fill.Pattern != FillPattern.Solid)
                 {
                     if (!ColorHelper.IsTransparentOrEmpty(fill.PatternColor))
-                        Write($@" ss:PatternColor=""#{ColorHelper.GetHexRgb(fill.PatternColor)}""");
+                        await WriteAsync($@" ss:PatternColor=""#{ColorHelper.GetHexRgb(fill.PatternColor)}""");
                 }
 
-                Write("/>"); // Closing tag
+                await WriteAsync("/>"); // Closing tag
             }
 
             if (style.Font != null)
             {
                 var font = style.Font.Value;
 
-                Write("<ss:Font"); // Opening tag
+                await WriteAsync("<ss:Font"); // Opening tag
 
                 if (font.Bold) // FALSE is default
-                    Write(@" ss:Bold=""1""");
+                    await WriteAsync(@" ss:Bold=""1""");
 
                 if (!ColorHelper.IsTransparentOrEmpty(font.Color))
                 {
-                    Write($@" ss:Color=""#{ColorHelper.GetHexRgb(font.Color)}""");
+                    await WriteAsync($@" ss:Color=""#{ColorHelper.GetHexRgb(font.Color)}""");
                 }
 
                 if (font.Name != null && font.Name.Length > 0)
                 {
-                    Write($@" ss:FontName=""{_XmlWriterHelper.EscapeAttribute(font.Name)}""");
+                    await WriteAsync($@" ss:FontName=""{_XmlWriterHelper.EscapeAttribute(font.Name)}""");
                 }
 
                 if (font.Italic) // FALSE is default
-                    Write(@" ss:Italic=""1""");
+                    await WriteAsync(@" ss:Italic=""1""");
 
                 if (font.Outline) // FALSE is default
-                    Write(@" ss:Outline=""1""");
+                    await WriteAsync(@" ss:Outline=""1""");
 
                 if (font.Shadow) // FALSE is default
-                    Write(@" ss:Shadow=""1""");
+                    await WriteAsync(@" ss:Shadow=""1""");
 
                 if (font.Size != 10.0) // 10 is default
-                    Write(string.Format(_Culture, @" ss:Size=""{0}""", font.Size));
+                    await WriteAsync(string.Format(_Culture, @" ss:Size=""{0}""", font.Size));
 
                 if (font.StrikeThrough) // FALSE is default
-                    Write(@" ss:StrikeThrough=""1""");
+                    await WriteAsync(@" ss:StrikeThrough=""1""");
 
                 string underline = null;
                 switch (font.Underline)
@@ -413,7 +414,7 @@ namespace SpreadsheetStreams
                 }
 
                 if (underline != null)
-                    Write($@" ss:Underline=""{underline}""");
+                    await WriteAsync($@" ss:Underline=""{underline}""");
 
                 string verticalAlign = null;
                 switch (font.VerticalAlign)
@@ -425,10 +426,10 @@ namespace SpreadsheetStreams
                 }
 
                 if (verticalAlign != null)
-                    Write($@" ss:VerticalAlign=""{verticalAlign}""");
+                    await WriteAsync($@" ss:VerticalAlign=""{verticalAlign}""");
 
                 if (font.Charset != null && (int)font.Charset.Value > 0) // 0 is default
-                    Write(string.Format(_Culture, @" ss:CharSet=""{0}""", (int)font.Charset.Value));
+                    await WriteAsync(string.Format(_Culture, @" ss:CharSet=""{0}""", (int)font.Charset.Value));
 
                 string family = null;
                 switch (font.Family)
@@ -443,12 +444,12 @@ namespace SpreadsheetStreams
                 }
 
                 if (family != null)
-                    Write($@" ss:Family=""{family}""");
+                    await WriteAsync($@" ss:Family=""{family}""");
 
-                Write("/>"); // Closing tag
+                await WriteAsync("/>"); // Closing tag
             }
 
-            Write("</ss:Style>");
+            await WriteAsync("</ss:Style>");
         }
 
         #endregion
@@ -463,61 +464,61 @@ namespace SpreadsheetStreams
         #endregion
 
         #region SpreadsheetWriter - Document Lifespan (private)
-
-        private void WritePendingBeginWorksheet()
+        
+        private async Task WritePendingBeginWorksheetAsync()
         {
             if (_ShouldBeginWorksheet)
             {
-                Write(string.Format("<Worksheet ss:Name=\"{0}\"", _XmlWriterHelper.EscapeAttribute(_CurrentWorksheetInfo.Name ?? $"Worksheet{_WorksheetCount}")));
+                await WriteAsync($"<Worksheet ss:Name=\"{_XmlWriterHelper.EscapeAttribute(_CurrentWorksheetInfo.Name ?? $"Worksheet{_WorksheetCount}")}\"");
 
                 if (_CurrentWorksheetInfo.RightToLeft != null)
-                    Write($" ss:RightToLeft=\"{(_CurrentWorksheetInfo.RightToLeft == true ? "1" : "0")}\"");
+                    await WriteAsync($" ss:RightToLeft=\"{(_CurrentWorksheetInfo.RightToLeft == true ? "1" : "0")}\"");
 
-                Write("><Table");
+                await WriteAsync("><Table");
 
                 if (_CurrentWorksheetInfo.DefaultRowHeight != null)
-                    Write($" ss:DefaultRowHeight=\"{Math.Max(0f, Math.Min(_CurrentWorksheetInfo.DefaultRowHeight.Value, 409.5f)).ToString("G", _Culture)}\"");
+                    await WriteAsync($" ss:DefaultRowHeight=\"{Math.Max(0f, Math.Min(_CurrentWorksheetInfo.DefaultRowHeight.Value, 409.5f)).ToString("G", _Culture)}\"");
 
                 if (_CurrentWorksheetInfo.DefaultColumnWidth != null)
-                    Write($" ss:DefaultColumnWidth=\"{(_CurrentWorksheetInfo.DefaultColumnWidth.Value * COLUMN_WIDTH_MULTIPLIER).ToString("G", _Culture)}\"");
+                    await WriteAsync($" ss:DefaultColumnWidth=\"{(_CurrentWorksheetInfo.DefaultColumnWidth.Value * COLUMN_WIDTH_MULTIPLIER).ToString("G", _Culture)}\"");
 
 
-                Write(">");
+                await WriteAsync(">");
 
                 foreach (string col in _Columns)
                 {
-                    if (string.IsNullOrEmpty(col)) Write("<Column/>");
-                    else Write($"<Column ss:Width=\"{col}\"/>");
+                    if (string.IsNullOrEmpty(col)) await WriteAsync("<Column/>");
+                    else await WriteAsync($"<Column ss:Width=\"{col}\"/>");
                 }
 
                 _ShouldBeginWorksheet = false;
             }
         }
 
-        private void WritePendingEndRow()
+        private async Task WritePendingEndRowAsync()
         {
             if (!_ShouldEndRow) return;
 
-            Write("</Row>");
+            await WriteAsync("</Row>");
 
             _ShouldEndRow = false;
         }
 
-        private void WritePendingEndWorksheet()
+        private async Task WritePendingEndWorksheetAsync()
         {
             if (_ShouldEndWorksheet)
             {
-                WritePendingBeginWorksheet();
-                WritePendingEndRow();
+                await WritePendingBeginWorksheetAsync();
+                await WritePendingEndRowAsync();
 
-                Write("</Table>");
-                Write("</Worksheet>");
+                await WriteAsync("</Table>");
+                await WriteAsync("</Worksheet>");
 
                 _ShouldEndWorksheet = false;
             }
         }
 
-        private void WriteBeginFile()
+        private async Task WriteBeginFileAsync()
         {
             if (_WroteFileStart) return;
             _WroteFileStart = true;
@@ -527,33 +528,33 @@ namespace SpreadsheetStreams
                 OutputStream.Write(_FileEncoding.GetPreamble(), 0, _FileEncoding.GetPreamble().Length);
             }
 
-            Write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-            Write("<?mso-application progid=\"Excel.Sheet\"?>");
-            Write("<Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\"");
-            Write(" xmlns:o=\"urn:schemas-microsoft-com:office:office\"");
-            Write(" xmlns:x=\"urn:schemas-microsoft-com:office:excel\"");
-            Write(" xmlns:ss=\"urn:schemas-microsoft-com:office:spreadsheet\">");
+            await WriteAsync("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+            await WriteAsync("<?mso-application progid=\"Excel.Sheet\"?>");
+            await WriteAsync("<Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\"");
+            await WriteAsync(" xmlns:o=\"urn:schemas-microsoft-com:office:office\"");
+            await WriteAsync(" xmlns:x=\"urn:schemas-microsoft-com:office:excel\"");
+            await WriteAsync(" xmlns:ss=\"urn:schemas-microsoft-com:office:spreadsheet\">");
 
-            Write("<Styles>");
-            Write("<ss:Style ss:ID=\"Default\" ss:Name=\"Normal\">");
-            Write("<ss:Alignment ss:Vertical=\"Bottom\"/>");
-            Write("</ss:Style>");
+            await WriteAsync("<Styles>");
+            await WriteAsync("<ss:Style ss:ID=\"Default\" ss:Name=\"Normal\">");
+            await WriteAsync("<ss:Alignment ss:Vertical=\"Bottom\"/>");
+            await WriteAsync("</ss:Style>");
 
             foreach (var style in _Styles.Keys)
             {
-                WriteStyle(style, GetStyleId(style, true));
+                await WriteStyleAsync(style, GetStyleId(style, true));
             }
 
-            Write("</Styles>");
+            await WriteAsync("</Styles>");
         }
 
         #endregion
 
         #region SpreadsheetWriter - Document Lifespan (public)
 
-        public override void NewWorksheet(WorksheetInfo info)
+        public override async Task NewWorksheetAsync(WorksheetInfo info)
         {
-            WritePendingEndWorksheet();
+            await WritePendingEndWorksheetAsync();
 
             _Columns.Clear();
             _CurrentWorksheetInfo = info;
@@ -578,24 +579,24 @@ namespace SpreadsheetStreams
             _ShouldEndWorksheet = true;
         }
 
-        public override void SkipRow()
+        public override Task SkipRowAsync()
         {
-            SkipRows(1);
+            return SkipRowsAsync(1);
         }
 
-        public override void SkipRows(int count)
+        public override async Task SkipRowsAsync(int count)
         {
             for (int i = 0; i < count; i++)
             {
-                AddRow();
+                await AddRowAsync();
             }
         }
         
-        public override void AddRow(Style style = null, float height = 0f, bool autoFit = true)
+        public override async Task AddRowAsync(Style style = null, float height = 0f, bool autoFit = true)
         {
             if (!_ShouldEndWorksheet)
             {
-                throw new InvalidOperationException("Adding new rows is not allowed at this time. Please call NewWorksheet(...) first.");
+                throw new InvalidOperationException("Adding new rows is not allowed at this time. Please call NewWorksheetAsync(...) first.");
             }
 
             if (!_WroteFileStart)
@@ -606,42 +607,42 @@ namespace SpreadsheetStreams
                     RegisterStyle(style);
                 }
 
-                WriteBeginFile();
+                await WriteBeginFileAsync();
             }
 
-            WritePendingBeginWorksheet();
-            WritePendingEndRow();
+            await WritePendingBeginWorksheetAsync();
+            await WritePendingEndRowAsync();
 
-            Write("<Row");
+            await WriteAsync("<Row");
 
             if (style != null)
             {
-                Write(string.Format(" ss:StyleID=\"{0}\"", GetStyleId(style, false)));
+                await WriteAsync(string.Format(" ss:StyleID=\"{0}\"", GetStyleId(style, false)));
             }
 
             if (height != 0)
             {
-                Write(string.Format(" ss:Height=\"{0:0.##}\"", height));
+                await WriteAsync(string.Format(" ss:Height=\"{0:0.##}\"", height));
             }
 
-            Write(">");
+            await WriteAsync(">");
 
             _ShouldEndRow = true;
         }
 
-        public override void Finish()
+        public override async Task FinishAsync()
         {
             if (!_WroteFileStart)
             {
-                WriteBeginFile();
-                NewWorksheet(new WorksheetInfo { });
+                await WriteBeginFileAsync();
+                await NewWorksheetAsync(new WorksheetInfo { });
             }
 
-            WritePendingEndWorksheet();
+            await WritePendingEndWorksheetAsync();
 
             if (!_WroteFileEnd)
             {
-                Write("</Workbook>");
+                await WriteAsync("</Workbook>");
                 _WroteFileEnd = true;
 
                 _Writer.Flush();
@@ -650,31 +651,31 @@ namespace SpreadsheetStreams
         }
 
         #endregion
-
+        
         #region SpreadsheetWriter - Cell methods
 
-        public override void SkipCell()
+        public override Task SkipCellAsync()
         {
-            SkipCells(1);
+            return SkipCellsAsync(1);
         }
 
-        public override void SkipCells(int count)
+        public override async Task SkipCellsAsync(int count)
         {
             for (int i = 0; i < count; i++)
             {
-                AddCell("");
+                await AddCellAsync("");
             }
         }
         
-        public override void AddCell(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
 
-            Write(string.Format("<Cell{0}{1}><Data ss:Type=\"String\">{2}</Data></Cell>", styleString, merge, _XmlWriterHelper.EscapeValue(data)));
+            await WriteAsync(string.Format("<Cell{0}{1}><Data ss:Type=\"String\">{2}</Data></Cell>", styleString, merge, _XmlWriterHelper.EscapeValue(data)));
         }
 
-        public override void AddCellStringAutoType(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellStringAutoTypeAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
@@ -690,82 +691,82 @@ namespace SpreadsheetStreams
                 type = "Number";
             }
 
-            Write(string.Format("<Cell{0}{1}><Data ss:Type=\"{2}\">{3}</Data></Cell>", styleString, merge, type, _XmlWriterHelper.EscapeValue(data)));
+            await WriteAsync(string.Format("<Cell{0}{1}><Data ss:Type=\"{2}\">{3}</Data></Cell>", styleString, merge, type, _XmlWriterHelper.EscapeValue(data)));
         }
 
-        public override void AddCellForcedString(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellForcedStringAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            AddCell(data, style, horzCellCount, vertCellCount);
+            await AddCellAsync(data, style, horzCellCount, vertCellCount);
         }
 
-        public override void AddCell(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public override void AddCell(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public override void AddCell(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public override void AddCell(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public override void AddCell(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 
-        public override void AddCell(double data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(double data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 
-        public override void AddCell(decimal data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(decimal data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 
-        public override void AddCell(DateTime data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(DateTime data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            Write(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"DateTime\">{2}</Data></Cell>",
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"DateTime\">{2}</Data></Cell>",
                 styleString, merge,
                 data.Year <= 1 ? "" : data.ToString("yyyy-MM-ddTHH:mm:ss.fff")));
         }
 
-        public override void AddCellFormula(string formula, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellFormulaAsync(string formula, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
 
-            Write(string.Format("<Cell{0}{1} ss:Formula=\"{2}\" />",
+            await WriteAsync(string.Format("<Cell{0}{1} ss:Formula=\"{2}\" />",
                 styleString, merge, _XmlWriterHelper.EscapeAttribute(formula)));
         }
 

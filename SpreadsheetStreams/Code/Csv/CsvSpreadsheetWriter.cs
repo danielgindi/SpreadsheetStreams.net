@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace SpreadsheetStreams
 {
@@ -89,9 +90,9 @@ namespace SpreadsheetStreams
             return value;
         }
 
-        private void Write(string data)
+        private async Task WriteAsync(string data)
         {
-            _Writer.Write(data);
+            await _Writer.WriteAsync(data).ConfigureAwait(false);
         }
 
         #endregion
@@ -106,20 +107,20 @@ namespace SpreadsheetStreams
 
         #region SpreadsheetWriter - Document Lifespan (private)
 
-        private void WritePendingEndRow()
+        private async Task WritePendingEndRowAsync()
         {
             if (!_ShouldEndRow) return;
 
-            Write("\n");
+            await WriteAsync("\n");
 
             _ShouldEndRow = false;
         }
 
-        private void WritePendingEndWorksheet()
+        private async Task WritePendingEndWorksheetAsync()
         {
             if (_ShouldEndWorksheet)
             {
-                WritePendingEndRow();
+                await WritePendingEndRowAsync();
                 _ShouldEndWorksheet = false;
             }
         }
@@ -134,41 +135,41 @@ namespace SpreadsheetStreams
 
         #region SpreadsheetWriter - Document Lifespan (public)
 
-        public override void NewWorksheet(WorksheetInfo info)
+        public override async Task NewWorksheetAsync(WorksheetInfo info)
         {
             bool shouldAddEmptyRow = _ShouldEndWorksheet;
 
-            WritePendingEndWorksheet();
+            await WritePendingEndWorksheetAsync();
             _ShouldEndWorksheet = true;
 
-            if (shouldAddEmptyRow) AddRow();
+            if (shouldAddEmptyRow) await AddRowAsync();
 
             if (info.Name != null)
             {
-                AddRow();
-                AddCell(info.Name);
-                AddRow();
+                await AddRowAsync();
+                await AddCellAsync(info.Name);
+                await AddRowAsync();
             }
         }
 
-        public override void SkipRow()
+        public override Task SkipRowAsync()
         {
-            SkipRows(1);
+            return SkipRowsAsync(1);
         }
 
-        public override void SkipRows(int count)
+        public override async Task SkipRowsAsync(int count)
         {
             for (int i = 0; i < count; i++)
             {
-                AddRow();
+                await AddRowAsync();
             }
         }
 
-        public override void AddRow(Style style = null, float height = 0f, bool autoFit = true)
+        public override async Task AddRowAsync(Style style = null, float height = 0f, bool autoFit = true)
         {
             if (!_ShouldEndWorksheet)
             {
-                throw new InvalidOperationException("Adding new rows is not allowed at this time. Please call NewWorksheet(...) first.");
+                throw new InvalidOperationException("Adding new rows is not allowed at this time. Please call NewWorksheetAsync(...) first.");
             }
 
             if (!_WroteFileStart)
@@ -176,20 +177,20 @@ namespace SpreadsheetStreams
                 WriteBeginFile();
             }
 
-            WritePendingEndRow();
+            await WritePendingEndRowAsync();
 
             _ShouldEndRow = true;
         }
 
-        public override void Finish()
+        public override async Task FinishAsync()
         {
             if (!_WroteFileStart)
             {
                 WriteBeginFile();
-                NewWorksheet(new WorksheetInfo { });
+                await NewWorksheetAsync(new WorksheetInfo { }).ConfigureAwait(false);
             }
 
-            WritePendingEndWorksheet();
+            await WritePendingEndWorksheetAsync();
 
             if (!_WroteFileEnd)
             {
@@ -206,83 +207,83 @@ namespace SpreadsheetStreams
 
         private static char[] s_CharsForEscape = new char[] { '\n', '\r', '"', ',' };
 
-        public override void SkipCell()
+        public override Task SkipCellAsync()
         {
-            SkipCells(1);
+            return SkipCellsAsync(1);
         }
 
-        public override void SkipCells(int count)
+        public override async Task SkipCellsAsync(int count)
         {
             for (int i = 0; i < count; i++)
             {
-                AddCell("");
+                await AddCellAsync("");
             }
         }
         
-        public override void AddCell(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(data.IndexOfAny(s_CharsForEscape) == -1 ? data + "," : string.Format(@"""{0}"",", CsvEscape(data)));
+            await WriteAsync(data.IndexOfAny(s_CharsForEscape) == -1 ? data + "," : string.Format(@"""{0}"",", CsvEscape(data)));
         }
 
-        public override void AddCellStringAutoType(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellStringAutoTypeAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(data.IndexOfAny(s_CharsForEscape) == -1 ? data + "," : string.Format(@"""{0}"",", CsvEscape(data)));
+            await WriteAsync(data.IndexOfAny(s_CharsForEscape) == -1 ? data + "," : string.Format(@"""{0}"",", CsvEscape(data)));
         }
 
-        public override void AddCellForcedString(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellForcedStringAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(string.Format("\"=\"\"{0}\"\"\",", CsvEscape(data)));
+            await WriteAsync(string.Format("\"=\"\"{0}\"\"\",", CsvEscape(data)));
         }
 
-        public override void AddCell(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(string.Format(_Culture, "{0:G},", data));
-        }
-
-#pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public override void AddCell(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
-        {
-            Write(string.Format(_Culture, "{0:G},", data));
-        }
-#pragma warning restore CS3001 // Argument type is not CLS-compliant
-
-        public override void AddCell(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
-        {
-            Write(string.Format(_Culture, "{0:G},", data));
+            await WriteAsync(string.Format(_Culture, "{0:G},", data));
         }
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public override void AddCell(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(string.Format(_Culture, "{0:G},", data));
+            await WriteAsync(string.Format(_Culture, "{0:G},", data));
         }
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public override void AddCell(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(string.Format(_Culture, "{0:G},", data));
+            await WriteAsync(string.Format(_Culture, "{0:G},", data));
         }
 
-        public override void AddCell(double data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public override async Task AddCellAsync(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(string.Format(_Culture, "{0:G},", data));
+            await WriteAsync(string.Format(_Culture, "{0:G},", data));
+        }
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
+
+        public override async Task AddCellAsync(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        {
+            await WriteAsync(string.Format(_Culture, "{0:G},", data));
         }
 
-        public override void AddCell(decimal data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(double data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(string.Format(_Culture, "{0:G},", data));
+            await WriteAsync(string.Format(_Culture, "{0:G},", data));
         }
 
-        public override void AddCell(DateTime data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(decimal data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        {
+            await WriteAsync(string.Format(_Culture, "{0:G},", data));
+        }
+
+        public override async Task AddCellAsync(DateTime data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             var dateFormat = "yyyy-MM-ddTHH:mm:ss.fff";
 
-            Write(string.Format("{0},", data.Year <= 1 ? "" : data.ToString(dateFormat)));
+            await WriteAsync(string.Format("{0},", data.Year <= 1 ? "" : data.ToString(dateFormat)));
         }
 
-        public override void AddCellFormula(string formula, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellFormulaAsync(string formula, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            Write(string.Format(@"""{0}"",", CsvEscape(formula)));
+            await WriteAsync(string.Format(@"""{0}"",", CsvEscape(formula)));
         }
 
         #endregion

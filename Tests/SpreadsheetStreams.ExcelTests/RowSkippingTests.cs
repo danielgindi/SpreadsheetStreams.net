@@ -6,34 +6,34 @@ namespace SpreadsheetStreams.ExcelTests
     public class RowSkippingTests
     {
         [Fact]
-        public void WhenSkippingRowsWithoutWorksheet_ShouldThrow()
+        public async Task WhenSkippingRowsWithoutWorksheet_ShouldThrow()
         {
-            Assert.Throws<InvalidOperationException>(() =>
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             {
                 using var ms = new MemoryStream();
                 var writer = new ExcelSpreadsheetWriter(ms);
 
-                writer.SkipRow();
+                await writer.SkipRowAsync();
             });
         }
 
         [Fact]
-        public void TestSkippingRowsOnBeginning()
+        public async Task TestSkippingRowsOnBeginning()
         {
             using var ms = new MemoryStream();
             var writer = new ExcelSpreadsheetWriter(ms, leaveOpen: true);
 
-            writer.NewWorksheet(new WorksheetInfo()
+            await writer.NewWorksheetAsync(new WorksheetInfo()
             {
                 Name = "Test Worksheet"
             });
 
-            writer.SkipRows(5);
+            await writer.SkipRowsAsync(5);
 
-            writer.AddRow();
-            writer.AddCell("Test Cell");
+            await writer.AddRowAsync();
+            await writer.AddCellAsync("Test Cell");
 
-            writer.Finish();
+            await writer.FinishAsync();
 
             ms.Position = 0;
             using var archive = new ZipArchive(ms, ZipArchiveMode.Read, true);
@@ -51,25 +51,25 @@ namespace SpreadsheetStreams.ExcelTests
         }
 
         [Fact]
-        public void TestSkippingRowsAfterExistingRow()
+        public async Task TestSkippingRowsAfterExistingRow()
         {
             using var ms = new MemoryStream();
             var writer = new ExcelSpreadsheetWriter(ms, leaveOpen: true);
 
-            writer.NewWorksheet(new WorksheetInfo()
+            await writer.NewWorksheetAsync(new WorksheetInfo()
             {
                 Name = "Test Worksheet"
             });
 
-            writer.AddRow();
-            writer.AddCell("Test Cell");
+            await writer.AddRowAsync();
+            await writer.AddCellAsync("Test Cell");
 
-            writer.SkipRows(5);
+            await writer.SkipRowsAsync(5);
 
-            writer.AddRow();
-            writer.AddCell("Test Cell");
+            await writer.AddRowAsync();
+            await writer.AddCellAsync("Test Cell");
 
-            writer.Finish();
+            await writer.FinishAsync();
 
             ms.Position = 0;
             using var archive = new ZipArchive(ms, ZipArchiveMode.Read, true);

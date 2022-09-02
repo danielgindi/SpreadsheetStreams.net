@@ -1057,6 +1057,11 @@ namespace SpreadsheetStreams
 
         public void SkipRows(int count)
         {
+            if (!_ShouldEndWorksheet)
+            {
+                throw new InvalidOperationException("Adding new rows is not allowed at this time. Please call NewWorksheet(...) first.");
+            }
+
             WritePendingBeginWorksheet();
             WritePendingEndRow();
 

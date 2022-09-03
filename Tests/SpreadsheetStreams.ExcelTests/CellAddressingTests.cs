@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace SpreadsheetStreams.ExcelTests
 {
     public class CellAddressingTests

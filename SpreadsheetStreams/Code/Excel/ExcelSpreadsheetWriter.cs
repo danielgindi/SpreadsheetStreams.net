@@ -1004,6 +1004,30 @@ namespace SpreadsheetStreams
             _CurrentWorksheePane = pane;
         }
 
+        public override void SkipRow()
+        {
+            SkipRows(1);
+        }
+
+        public override void SkipRows(int count)
+        {
+            if (!_ShouldEndWorksheet)
+            {
+                throw new InvalidOperationException("Adding new rows is not allowed at this time. Please call NewWorksheet(...) first.");
+            }
+
+            if (!_WroteFileStart)
+            {
+                WriteBeginFile();
+            }
+            
+            WritePendingBeginWorksheet();
+            WritePendingEndRow();
+
+            _RowCount += count;
+            _CellCount = 0;
+        }
+        
         public override void AddRow(Style style = null, float height = 0f, bool autoFit = true)
         {
             if (!_ShouldEndWorksheet)
@@ -1050,25 +1074,6 @@ namespace SpreadsheetStreams
             _ShouldEndRow = true;
         }
 
-        public void SkipRow()
-        {
-            SkipRows(1);
-        }
-
-        public void SkipRows(int count)
-        {
-            if (!_ShouldEndWorksheet)
-            {
-                throw new InvalidOperationException("Adding new rows is not allowed at this time. Please call NewWorksheet(...) first.");
-            }
-
-            WritePendingBeginWorksheet();
-            WritePendingEndRow();
-
-            _RowCount += count;
-            _CellCount = 0;
-        }
-
         private void WriteCellHeader(int cellIndex, int rowIndex, bool closed, string type, Style style = null)
         {
             _CurrentWorksheetPartWriter.Write($"<c r=\"{ConvertColumnAddress(cellIndex)}{rowIndex}\"");
@@ -1108,12 +1113,12 @@ namespace SpreadsheetStreams
 
         #region SpreadsheetWriter - Cell methods
 
-        public void SkipCell()
+        public override void SkipCell()
         {
             SkipCells(1);
         }
 
-        public void SkipCells(int count)
+        public override void SkipCells(int count)
         {
             _CellCount += count;
         }

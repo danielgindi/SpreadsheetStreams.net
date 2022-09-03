@@ -151,6 +151,19 @@ namespace SpreadsheetStreams
             }
         }
 
+        public override void SkipRow()
+        {
+            SkipRows(1);
+        }
+
+        public override void SkipRows(int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                AddRow();
+            }
+        }
+
         public override void AddRow(Style style = null, float height = 0f, bool autoFit = true)
         {
             if (!_ShouldEndWorksheet)
@@ -193,6 +206,19 @@ namespace SpreadsheetStreams
 
         private static char[] s_CharsForEscape = new char[] { '\n', '\r', '"', ',' };
 
+        public override void SkipCell()
+        {
+            SkipCells(1);
+        }
+
+        public override void SkipCells(int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                AddCell("");
+            }
+        }
+        
         public override void AddCell(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             Write(data.IndexOfAny(s_CharsForEscape) == -1 ? data + "," : string.Format(@"""{0}"",", CsvEscape(data)));

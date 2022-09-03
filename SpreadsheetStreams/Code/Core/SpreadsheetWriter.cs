@@ -60,14 +60,21 @@ namespace SpreadsheetStreams
 
         public abstract void NewWorksheet(WorksheetInfo info);
 
+        public abstract void SkipRow();
+
+        public abstract void SkipRows(int count);
+
         public abstract void AddRow(Style style = null, float height = 0f, bool autoFit = true);
 
         public abstract void Finish();
 
         #endregion
-        
+
         #region Cells
 
+        public abstract void SkipCell();
+        public abstract void SkipCells(int count);
+            
         public abstract void AddCell(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
 
         public abstract void AddCellStringAutoType(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);

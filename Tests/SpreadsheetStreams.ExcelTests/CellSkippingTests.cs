@@ -6,24 +6,24 @@ namespace SpreadsheetStreams.ExcelTests
     public class CellSkippingTests
     {
         [Fact]
-        public void TestSkippingCells()
+        public async Task TestSkippingCells()
         {
             using var ms = new MemoryStream();
             var writer = new ExcelSpreadsheetWriter(ms, leaveOpen: true);
 
-            writer.NewWorksheet(new WorksheetInfo()
+            await writer.NewWorksheetAsync(new WorksheetInfo()
             {
                 Name = "Test Worksheet"
             });
 
-            writer.AddRow();
-            writer.AddCell("Test Cell");
+            await writer.AddRowAsync();
+            await writer.AddCellAsync("Test Cell");
 
-            writer.SkipCells(5);
+            await writer.SkipCellsAsync(5);
 
-            writer.AddCell("New Cell");
+            await writer.AddCellAsync("New Cell");
 
-            writer.Finish();
+            await writer.FinishAsync();
 
             ms.Position = 0;
             using var archive = new ZipArchive(ms, ZipArchiveMode.Read, true);

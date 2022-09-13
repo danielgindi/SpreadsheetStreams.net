@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Threading.Tasks;
 
 namespace SpreadsheetStreams
 {
@@ -82,7 +83,7 @@ namespace SpreadsheetStreams
             _ContentTypes.Add(new ContentType { Target = target, Type = type });
         }
 
-        internal void CommitRelationships(CompressionLevel compressionLevel)
+        internal async Task CommitRelationshipsAsync(CompressionLevel compressionLevel)
         {
             if (_PackageRelationships != null)
             {
@@ -90,15 +91,15 @@ namespace SpreadsheetStreams
                 using (var stream = pEntry.Open())
                 using (var streamWriter = new StreamWriter(stream))
                 {
-                    streamWriter.Write("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-                    streamWriter.Write("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
+                    await streamWriter.WriteAsync("<?xml version=\"1.0\" encoding=\"utf-8\"?>").ConfigureAwait(false);
+                    await streamWriter.WriteAsync("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">").ConfigureAwait(false);
                     {
                         foreach (var rel in _PackageRelationships)
                         {
-                            streamWriter.Write($"<Relationship Type=\"{_XmlWriterHelper.EscapeAttribute(rel.Type, false)}\" Target=\"{_XmlWriterHelper.EscapeAttribute(rel.Target, false)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{_XmlWriterHelper.EscapeAttribute(rel.Id, false)}\"")}/>");
+                            await streamWriter.WriteAsync($"<Relationship Type=\"{_XmlWriterHelper.EscapeAttribute(rel.Type, false)}\" Target=\"{_XmlWriterHelper.EscapeAttribute(rel.Target, false)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{_XmlWriterHelper.EscapeAttribute(rel.Id, false)}\"")}/>").ConfigureAwait(false);
                         }
                     }
-                    streamWriter.Write("</Relationships>");
+                    await streamWriter.WriteAsync("</Relationships>").ConfigureAwait(false);
                 }
             }
 
@@ -111,8 +112,8 @@ namespace SpreadsheetStreams
                 using (var stream = pEntry.Open())
                 using (var streamWriter = new StreamWriter(stream))
                 {
-                    streamWriter.Write("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-                    streamWriter.Write("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
+                    await streamWriter.WriteAsync("<?xml version=\"1.0\" encoding=\"utf-8\"?>").ConfigureAwait(false);
+                    await streamWriter.WriteAsync("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">").ConfigureAwait(false);
                     {
                         foreach (var rel in p.Value)
                         {
@@ -124,15 +125,15 @@ namespace SpreadsheetStreams
                                     target = target.Remove(0, 1);
                             }
 
-                            streamWriter.Write($"<Relationship Type=\"{_XmlWriterHelper.EscapeAttribute(rel.Type, false)}\" Target=\"{_XmlWriterHelper.EscapeAttribute(target)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{_XmlWriterHelper.EscapeAttribute(rel.Id, false)}\"")}/>");
+                            await streamWriter.WriteAsync($"<Relationship Type=\"{_XmlWriterHelper.EscapeAttribute(rel.Type, false)}\" Target=\"{_XmlWriterHelper.EscapeAttribute(target)}\"{(string.IsNullOrEmpty(rel.Id) ? "" : $" Id=\"{_XmlWriterHelper.EscapeAttribute(rel.Id, false)}\"")}/>").ConfigureAwait(false);
                         }
                     }
-                    streamWriter.Write("</Relationships>");
+                    await streamWriter.WriteAsync("</Relationships>").ConfigureAwait(false);
                 }
             }
         }
 
-        internal void CommitContentTypes(CompressionLevel compressionLevel)
+        internal async Task CommitContentTypesAsync(CompressionLevel compressionLevel)
         {
             if (_ContentTypes != null)
             {
@@ -140,18 +141,18 @@ namespace SpreadsheetStreams
                 using (var stream = ctEntry.Open())
                 using (var streamWriter = new StreamWriter(stream))
                 {
-                    streamWriter.Write("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-                    streamWriter.Write("<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">");
+                    await streamWriter.WriteAsync("<?xml version=\"1.0\" encoding=\"utf-8\"?>").ConfigureAwait(false);
+                    await streamWriter.WriteAsync("<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">").ConfigureAwait(false);
                     {
-                        streamWriter.Write("<Default Extension=\"xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>");
-                        streamWriter.Write("<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>");
+                        await streamWriter.WriteAsync("<Default Extension=\"xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>").ConfigureAwait(false);
+                        await streamWriter.WriteAsync("<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>").ConfigureAwait(false);
 
                         foreach (var ct in _ContentTypes)
                         {
-                            streamWriter.Write($"<Override PartName=\"{_XmlWriterHelper.EscapeAttribute(ct.Target, false)}\" ContentType=\"{_XmlWriterHelper.EscapeAttribute(ct.Type, false)}\"/>");
+                            await streamWriter.WriteAsync($"<Override PartName=\"{_XmlWriterHelper.EscapeAttribute(ct.Target, false)}\" ContentType=\"{_XmlWriterHelper.EscapeAttribute(ct.Type, false)}\"/>").ConfigureAwait(false);
                         }
                     }
-                    streamWriter.Write("</Types>");
+                    await streamWriter.WriteAsync("</Types>").ConfigureAwait(false);
                 }
             }
         }

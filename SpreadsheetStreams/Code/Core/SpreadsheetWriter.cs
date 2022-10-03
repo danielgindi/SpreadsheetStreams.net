@@ -33,10 +33,6 @@ namespace SpreadsheetStreams
 
         protected virtual void Dispose(bool disposing)
         {
-            if (disposing)
-            {
-                FinishAsync();
-            }
         }
 
         #endregion

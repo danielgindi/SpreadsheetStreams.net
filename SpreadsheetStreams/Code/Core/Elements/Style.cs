@@ -9,5 +9,17 @@ namespace SpreadsheetStreams
         public List<Border> Borders;
         public Fill? Fill;
         public Font? Font;
+
+        public Style Clone()
+        {
+            return new Style
+            {
+                NumberFormat = NumberFormat,
+                Alignment = Alignment,
+                Borders = Borders == null ? null : new List<Border>(Borders),
+                Fill = Fill,
+                Font = Font,
+            };
+        }
     }
 }

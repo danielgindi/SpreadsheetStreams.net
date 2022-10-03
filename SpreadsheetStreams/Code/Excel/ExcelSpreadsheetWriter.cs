@@ -79,7 +79,6 @@ namespace SpreadsheetStreams
         private FrozenPaneState? _CurrentWorksheePane = null;
         private int _RowCount = 0;
         private int _CellCount = 0;
-        private List<string> _MergeCells = new List<string>();
 
         private List<WorksheetInfo> _WorksheetInfos = new List<WorksheetInfo>();
 
@@ -91,13 +90,38 @@ namespace SpreadsheetStreams
 
         private int _NextStyleIndex = 1;
         private Dictionary<Style, int> _Styles = new Dictionary<Style, int>();
+        private Dictionary<Style, Dictionary<MergedCellBorderPosition, Style>> _StyleForBorderMerge = new Dictionary<Style, Dictionary<MergedCellBorderPosition, Style>>();
         private Dictionary<int, int> _StyleIdBorderIdMap = new Dictionary<int, int>();
         private Dictionary<int, int> _StyleIdFontIdMap = new Dictionary<int, int>();
         private Dictionary<int, int> _StyleIdFillIdMap = new Dictionary<int, int>();
         private Dictionary<int, int> _StyleIdNumberFormatIdMap = new Dictionary<int, int>();
-        private List<string> _Columns = new List<string>();
 
+        private List<string> _MergeCells = new List<string>();
+        private Dictionary<int, List<(int x, Style style)>> _QueuedMergedCellStyles = new Dictionary<int, List<(int x, Style style)>>();
+        private List<int> _QueuedRowIndexes = new List<int>();
+        private int _NextQueuedRowIndex = 0;
+        private int _MaxQueuedRowIndex = 0;
+        
         private XmlWriterHelper _XmlWriterHelper = new XmlWriterHelper();
+
+        private enum MergedCellBorderPosition
+        {
+            TopLeft,
+            TopCenter,
+            TopRight,
+            TopLeftRight,
+            MiddleLeft,
+            MiddleCenter,
+            MiddleRight,
+            MiddleLeftRight,
+            BottomLeft,
+            BottomCenter,
+            BottomRight,
+            BottomLeftRight,
+            TopBottomLeft,
+            TopBottomCenter,
+            TopBottomRight,
+        }
 
         #endregion
 
@@ -140,12 +164,73 @@ namespace SpreadsheetStreams
             }
         }
 
-        private void FillHorzCellCount(int horzCellCount)
+        private async System.Threading.Tasks.Task HandleMergedCells(int horzCellCount, int vertCellCount, Style style)
         {
-            if (horzCellCount < 2)
-                return;
+            if (horzCellCount > 1 && (style.Borders?.Count ?? 0) > 0)
+            {
+                if (!_StyleForBorderMerge.TryGetValue(style, out var map))
+                    map = PrepareBorderStyleMergeVariations(style);
 
-            _CellCount += horzCellCount - 1;
+                for (int x = 2; x <= horzCellCount; x++)
+                {
+                    var pos = vertCellCount > 1 
+                        ? x < horzCellCount ? MergedCellBorderPosition.TopCenter : MergedCellBorderPosition.TopRight
+                        : x < horzCellCount ? MergedCellBorderPosition.TopBottomCenter : MergedCellBorderPosition.TopBottomRight;
+
+                    if (map == null || !map.TryGetValue(pos, out var mergeStyle))
+                        mergeStyle = style;
+
+                    await WriteCellHeaderAsync(_CellCount + x - 1, _RowCount, true, null, style);
+                }
+            }
+            
+            if (vertCellCount > 1 && (style.Borders?.Count ?? 0) > 0)
+            {
+                if (!_StyleForBorderMerge.TryGetValue(style, out var map))
+                    map = PrepareBorderStyleMergeVariations(style);
+
+                var maxY = _RowCount + vertCellCount - 1;
+                
+                for (int y = _RowCount + 1; y <= maxY; y++)
+                {
+                    if (!_QueuedMergedCellStyles.TryGetValue(y, out var mergedCellStyles))
+                    {
+                        mergedCellStyles = new List<(int x, Style style)>();
+                        _QueuedMergedCellStyles[y] = mergedCellStyles;
+
+                        if (_MaxQueuedRowIndex < y)
+                        {
+                            _MaxQueuedRowIndex = y;
+                            _QueuedRowIndexes.Add(y);
+
+                            if (_NextQueuedRowIndex == 0)
+                                _NextQueuedRowIndex = y;
+                        }
+                    }
+
+                    int insertIndex = mergedCellStyles.Count;
+
+                    if (mergedCellStyles.Count > 0 && mergedCellStyles[0].x > _CellCount)
+                        insertIndex = 0;
+
+                    for (int x = 1; x <= horzCellCount; x++)
+                    {
+                        var pos = y == maxY
+                            ? x == 1 ? MergedCellBorderPosition.BottomLeft : x < horzCellCount ? MergedCellBorderPosition.BottomCenter : MergedCellBorderPosition.BottomRight
+                            : x == 1 ? MergedCellBorderPosition.MiddleLeft : x < horzCellCount ? MergedCellBorderPosition.MiddleCenter : MergedCellBorderPosition.MiddleRight;
+
+                        if (map == null || !map.TryGetValue(pos, out var mergeStyle))
+                            mergeStyle = style;
+
+                        mergedCellStyles.Insert(insertIndex++, (_CellCount + x - 1, mergeStyle));
+                    }
+                }
+            }
+
+            if (horzCellCount > 1)
+            {
+                _CellCount += horzCellCount - 1;
+            }
         }
 
         private static string GetBorderLineStyleName(BorderLineStyle style, float weight)
@@ -522,6 +607,46 @@ namespace SpreadsheetStreams
             }
         }
 
+        private Dictionary<MergedCellBorderPosition, Style> PrepareBorderStyleMergeVariations(Style baseStyle)
+        {
+            if (baseStyle.Borders == null || baseStyle.Borders.Count == 0)
+                return null;
+            
+            var map = new Dictionary<MergedCellBorderPosition, Style>();
+            _StyleForBorderMerge[baseStyle] = map;
+
+            void registerVariation(MergedCellBorderPosition position, Predicate<Border> keep)
+            {
+                if (!baseStyle.Borders.Any(x => !keep(x)))
+                {
+                    return;
+                }
+                    
+                var style = baseStyle.Clone();
+                style.Borders.RemoveAll(x => !keep(x));
+                map.Add(position, style);
+                RegisterStyle(style);
+            }
+                
+            registerVariation(MergedCellBorderPosition.MiddleCenter, x => false);
+            registerVariation(MergedCellBorderPosition.MiddleLeft, x => x.Position == BorderPosition.Left);
+            registerVariation(MergedCellBorderPosition.MiddleRight, x => x.Position == BorderPosition.Right);
+            registerVariation(MergedCellBorderPosition.MiddleLeftRight, x => x.Position == BorderPosition.Left || x.Position == BorderPosition.Right);
+            registerVariation(MergedCellBorderPosition.TopLeft, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Left);
+            registerVariation(MergedCellBorderPosition.TopCenter, x => x.Position == BorderPosition.Top);
+            registerVariation(MergedCellBorderPosition.TopRight, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Right);
+            registerVariation(MergedCellBorderPosition.TopLeftRight, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Left || x.Position == BorderPosition.Right);
+            registerVariation(MergedCellBorderPosition.BottomLeft, x => x.Position == BorderPosition.Bottom || x.Position == BorderPosition.Left);
+            registerVariation(MergedCellBorderPosition.BottomCenter, x => x.Position == BorderPosition.Bottom);
+            registerVariation(MergedCellBorderPosition.BottomRight, x => x.Position == BorderPosition.Bottom || x.Position == BorderPosition.Right);
+            registerVariation(MergedCellBorderPosition.BottomLeftRight, x => x.Position == BorderPosition.Bottom || x.Position == BorderPosition.Left || x.Position == BorderPosition.Right);
+            registerVariation(MergedCellBorderPosition.TopBottomLeft, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Bottom || x.Position == BorderPosition.Left);
+            registerVariation(MergedCellBorderPosition.TopBottomCenter, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Bottom);
+            registerVariation(MergedCellBorderPosition.TopBottomRight, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Bottom || x.Position == BorderPosition.Right);
+
+            return map;
+        }
+        
         private async Task WriteStylesXmlAsync(Stream stream)
         {
             using (var writer = new StreamWriter(stream))
@@ -923,11 +1048,17 @@ namespace SpreadsheetStreams
         {
             if (!_ShouldEndRow) return;
 
+            // write missing merge cells after last the cell that was written in this row
+            if (_NextQueuedRowIndex == _RowCount)
+            {
+                await WriteMergedCellCounterparts(_RowCount);
+            }
+
             await _CurrentWorksheetPartWriter.WriteAsync("</row>").ConfigureAwait(false);
 
             _ShouldEndRow = false;
         }
-
+        
         private async Task WritePendingEndWorksheetAsync()
         {
             if (_ShouldEndWorksheet)
@@ -987,9 +1118,13 @@ namespace SpreadsheetStreams
 
             _ShouldBeginWorksheet = true;
             _ShouldEndWorksheet = true;
-            _MergeCells.Clear();
-
+            
             _RowCount = 0;
+            _MergeCells.Clear();
+            _QueuedMergedCellStyles.Clear();
+            _QueuedRowIndexes.Clear();
+            _NextQueuedRowIndex = 0;
+            _MaxQueuedRowIndex = 0;
         }
 
         public void SetWorksheetFrozenPane(FrozenPaneState? pane)
@@ -1000,6 +1135,62 @@ namespace SpreadsheetStreams
         public override Task SkipRowAsync()
         {
             return SkipRowsAsync(1);
+        }
+        
+        private async Task SkipRowsAsyncImpl(int count)
+        {
+            if (count > 0 && _NextQueuedRowIndex > _RowCount && _NextQueuedRowIndex <= _RowCount + count)
+            {
+                var max = Math.Min(_MaxQueuedRowIndex, _RowCount + count);
+                
+                for (int y = _NextQueuedRowIndex; y <= max; y++)
+                {
+                    await _CurrentWorksheetPartWriter.WriteAsync($"<row r=\"{y}\">").ConfigureAwait(false);
+                    await WriteMergedCellCounterparts(y);
+                    await _CurrentWorksheetPartWriter.WriteAsync($"</row>").ConfigureAwait(false);
+
+                    if (_NextQueuedRowIndex > 0)
+                        y = _NextQueuedRowIndex - 1;
+                    else
+                        y = max;
+                }
+            }
+            
+            _RowCount += count;
+        }
+        
+        private async Task WriteMergedCellCounterparts(int row, int maxX = 0)
+        {
+            if (!_QueuedMergedCellStyles.TryGetValue(row, out var cells))
+                return;
+
+            int writtenCount = 0;
+            foreach (var cell in cells)
+            {
+                if (maxX > 0 && cell.x > maxX) break;
+                
+                await WriteCellHeaderAsync(cell.x, row, true, null, cell.style);
+                writtenCount++;
+            }
+            
+            if (writtenCount < cells.Count)
+            {
+                cells.RemoveRange(0, writtenCount);
+                return;
+            }
+
+            _QueuedMergedCellStyles.Remove(row);
+            _QueuedRowIndexes.RemoveAt(0);
+
+            if (_QueuedRowIndexes.Count > 0)
+            {
+                _NextQueuedRowIndex = _QueuedRowIndexes[0];
+            }
+            else
+            {
+                _NextQueuedRowIndex = 0;
+                _MaxQueuedRowIndex = 0;
+            }
         }
 
         public override async Task SkipRowsAsync(int count)
@@ -1016,8 +1207,8 @@ namespace SpreadsheetStreams
             
             await WritePendingBeginWorksheetAsync();
             await WritePendingEndRowAsync();
+            await SkipRowsAsyncImpl(count);
 
-            _RowCount += count;
             _CellCount = 0;
         }
         
@@ -1039,10 +1230,10 @@ namespace SpreadsheetStreams
                 BeginFile();
             }
 
-            await WritePendingBeginWorksheetAsync().ConfigureAwait(false);
-            await WritePendingEndRowAsync().ConfigureAwait(false);
+            await WritePendingBeginWorksheetAsync();
+            await WritePendingEndRowAsync();
 
-            _RowCount++;
+            _RowCount ++;
             _CellCount = 0;
             await _CurrentWorksheetPartWriter.WriteAsync($"<row r=\"{_RowCount}\"").ConfigureAwait(false);
 
@@ -1119,18 +1310,24 @@ namespace SpreadsheetStreams
 
         public override async Task AddCellAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+            
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "str", style).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "str", style);
             await _CurrentWorksheetPartWriter.WriteAsync("<v>" + _XmlWriterHelper.EscapeValue(data) + "</v>").ConfigureAwait(false);
-            await WriteCellFooterAsync().ConfigureAwait(false);
+            await WriteCellFooterAsync();
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
         public override async Task AddCellStringAutoTypeAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+            
             MergeNextCell(horzCellCount, vertCellCount);
 
             var type = "str";
@@ -1146,10 +1343,10 @@ namespace SpreadsheetStreams
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, type, style);
             await _CurrentWorksheetPartWriter.WriteAsync("<v>" + _XmlWriterHelper.EscapeValue(data) + "</v>").ConfigureAwait(false);
-            await WriteCellFooterAsync().ConfigureAwait(false);
+            await WriteCellFooterAsync();
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
         public override Task AddCellForcedStringAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
@@ -1159,121 +1356,148 @@ namespace SpreadsheetStreams
 
         public override async Task AddCellAsync(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+            
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
             await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
-            await WriteCellFooterAsync().ConfigureAwait(false);
+            await WriteCellFooterAsync();
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
         public override async Task AddCellAsync(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+            
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
             await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
-            await WriteCellFooterAsync().ConfigureAwait(false);
+            await WriteCellFooterAsync();
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
         public override async Task AddCellAsync(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+            
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
             await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
-            await WriteCellFooterAsync().ConfigureAwait(false);
+            await WriteCellFooterAsync();
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
         public override async Task AddCellAsync(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+            
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
             await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
-            await WriteCellFooterAsync().ConfigureAwait(false);
+            await WriteCellFooterAsync();
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
         public override async Task AddCellAsync(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+            
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
             await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
-            await WriteCellFooterAsync().ConfigureAwait(false);
+            await WriteCellFooterAsync();
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
         public override async Task AddCellAsync(double data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+            
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
             await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
-            await WriteCellFooterAsync().ConfigureAwait(false);
+            await WriteCellFooterAsync();
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
         public override async Task AddCellAsync(decimal data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+            
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
             await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
-            await WriteCellFooterAsync().ConfigureAwait(false);
+            await WriteCellFooterAsync();
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
         public override async Task AddCellAsync(DateTime data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+            
             MergeNextCell(horzCellCount, vertCellCount);
 
             if (data.Year >= 1900)
             {
-                await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style).ConfigureAwait(false);
+                await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
                 await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data.ToOADate())).ConfigureAwait(false);
-                await WriteCellFooterAsync().ConfigureAwait(false);
+                await WriteCellFooterAsync();
             }
             else
             {
-                await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, true, null, style).ConfigureAwait(false);
+                await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, true, null, style);
             }
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
         public override async Task AddCellFormulaAsync(string formula, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "str", style).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "str", style);
             await _CurrentWorksheetPartWriter.WriteAsync("<f>" + _XmlWriterHelper.EscapeValue(formula) + "</f>").ConfigureAwait(false);
-            await WriteCellFooterAsync().ConfigureAwait(false);
+            await WriteCellFooterAsync();
 
-            if (horzCellCount > 1)
-                FillHorzCellCount(horzCellCount);
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
         #endregion

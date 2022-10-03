@@ -63,6 +63,17 @@ namespace Samples
                     new Border(BorderPosition.Right, Color.Blue, BorderLineStyle.Dot, 2.0f),
                 },
             };
+            
+            var centerAroundBorder = new Style
+            {
+                Alignment = new Alignment { Horizontal = HorizontalAlignment.Center, Vertical = VerticalAlignment.Center },
+                Borders = new List<Border>() {
+                    new Border(BorderPosition.Left, Color.Red, BorderLineStyle.Continuous, 2.0f),
+                    new Border(BorderPosition.Right, Color.Blue, BorderLineStyle.Continuous, 2.0f),
+                    new Border(BorderPosition.Top, Color.Green, BorderLineStyle.Continuous, 2.0f),
+                    new Border(BorderPosition.Bottom, Color.Purple, BorderLineStyle.Continuous, 2.0f),
+                },
+            };
 
             var styleGrayBg = new Style
             {
@@ -116,6 +127,7 @@ namespace Samples
             };
 
             writer.RegisterStyle(styleCenterBorder);
+            writer.RegisterStyle(centerAroundBorder);
             writer.RegisterStyle(styleGrayBg);
             writer.RegisterStyle(styleGrayBgWrap);
             writer.RegisterStyle(styleYellowBg);
@@ -178,6 +190,33 @@ namespace Samples
                 await writer.AddRowAsync(i % 2 == 0 ? null : styleGrayBg);
                 await writer.AddCellAsync("some data");
             }
+
+            await writer.NewWorksheetAsync(new WorksheetInfo
+            {
+                DefaultColumnWidth = 30f,
+                DefaultRowHeight = 20f,
+                Name = "ws3"
+            });
+
+            await writer.AddRowAsync();
+            await writer.AddCellAsync("a1");
+            await writer.AddCellAsync("merged b1:d1", centerAroundBorder, 3);
+            await writer.AddCellAsync("e1");
+
+            await writer.AddRowAsync();
+            await writer.AddCellAsync("a2");
+            await writer.AddCellAsync("b2");
+            await writer.AddCellAsync("merged c2:e4", centerAroundBorder, 3, 3);
+            await writer.AddCellAsync("f2");
+            await writer.AddCellAsync("g2");
+
+            await writer.SkipRowAsync();
+            
+            await writer.AddRowAsync();
+            await writer.AddCellAsync("merged a4:b4", centerAroundBorder, 2);
+            await writer.SkipCellsAsync(3); // skip c4:e4, which are merged
+            await writer.AddCellAsync("f4");
+            await writer.AddCellAsync("g4");
 
             await writer.FinishAsync();
         }

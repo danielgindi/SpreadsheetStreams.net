@@ -90,7 +90,6 @@ namespace SpreadsheetStreams
 
         private int _NextStyleIndex = 1;
         private Dictionary<Style, int> _Styles = new Dictionary<Style, int>();
-        private Dictionary<Style, Dictionary<MergedCellBorderPosition, Style>> _StyleForBorderMerge = new Dictionary<Style, Dictionary<MergedCellBorderPosition, Style>>();
         private Dictionary<int, int> _StyleIdBorderIdMap = new Dictionary<int, int>();
         private Dictionary<int, int> _StyleIdFontIdMap = new Dictionary<int, int>();
         private Dictionary<int, int> _StyleIdFillIdMap = new Dictionary<int, int>();
@@ -103,25 +102,6 @@ namespace SpreadsheetStreams
         private int _MaxQueuedRowIndex = 0;
         
         private XmlWriterHelper _XmlWriterHelper = new XmlWriterHelper();
-
-        private enum MergedCellBorderPosition
-        {
-            TopLeft,
-            TopCenter,
-            TopRight,
-            TopLeftRight,
-            MiddleLeft,
-            MiddleCenter,
-            MiddleRight,
-            MiddleLeftRight,
-            BottomLeft,
-            BottomCenter,
-            BottomRight,
-            BottomLeftRight,
-            TopBottomLeft,
-            TopBottomCenter,
-            TopBottomRight,
-        }
 
         #endregion
 
@@ -168,27 +148,14 @@ namespace SpreadsheetStreams
         {
             if (horzCellCount > 1 && (style.Borders?.Count ?? 0) > 0)
             {
-                if (!_StyleForBorderMerge.TryGetValue(style, out var map))
-                    map = PrepareBorderStyleMergeVariations(style);
-
                 for (int x = 2; x <= horzCellCount; x++)
                 {
-                    var pos = vertCellCount > 1 
-                        ? x < horzCellCount ? MergedCellBorderPosition.TopCenter : MergedCellBorderPosition.TopRight
-                        : x < horzCellCount ? MergedCellBorderPosition.TopBottomCenter : MergedCellBorderPosition.TopBottomRight;
-
-                    if (map == null || !map.TryGetValue(pos, out var mergeStyle))
-                        mergeStyle = style;
-
                     await WriteCellHeaderAsync(_CellCount + x - 1, _RowCount, true, null, style);
                 }
             }
             
             if (vertCellCount > 1 && (style.Borders?.Count ?? 0) > 0)
             {
-                if (!_StyleForBorderMerge.TryGetValue(style, out var map))
-                    map = PrepareBorderStyleMergeVariations(style);
-
                 var maxY = _RowCount + vertCellCount - 1;
                 
                 for (int y = _RowCount + 1; y <= maxY; y++)
@@ -215,14 +182,7 @@ namespace SpreadsheetStreams
 
                     for (int x = 1; x <= horzCellCount; x++)
                     {
-                        var pos = y == maxY
-                            ? x == 1 ? MergedCellBorderPosition.BottomLeft : x < horzCellCount ? MergedCellBorderPosition.BottomCenter : MergedCellBorderPosition.BottomRight
-                            : x == 1 ? MergedCellBorderPosition.MiddleLeft : x < horzCellCount ? MergedCellBorderPosition.MiddleCenter : MergedCellBorderPosition.MiddleRight;
-
-                        if (map == null || !map.TryGetValue(pos, out var mergeStyle))
-                            mergeStyle = style;
-
-                        mergedCellStyles.Insert(insertIndex++, (_CellCount + x - 1, mergeStyle));
+                        mergedCellStyles.Insert(insertIndex++, (_CellCount + x - 1, style));
                     }
                 }
             }
@@ -607,46 +567,6 @@ namespace SpreadsheetStreams
             }
         }
 
-        private Dictionary<MergedCellBorderPosition, Style> PrepareBorderStyleMergeVariations(Style baseStyle)
-        {
-            if (baseStyle.Borders == null || baseStyle.Borders.Count == 0)
-                return null;
-            
-            var map = new Dictionary<MergedCellBorderPosition, Style>();
-            _StyleForBorderMerge[baseStyle] = map;
-
-            void registerVariation(MergedCellBorderPosition position, Predicate<Border> keep)
-            {
-                if (!baseStyle.Borders.Any(x => !keep(x)))
-                {
-                    return;
-                }
-                    
-                var style = baseStyle.Clone();
-                style.Borders.RemoveAll(x => !keep(x));
-                map.Add(position, style);
-                RegisterStyle(style);
-            }
-                
-            registerVariation(MergedCellBorderPosition.MiddleCenter, x => false);
-            registerVariation(MergedCellBorderPosition.MiddleLeft, x => x.Position == BorderPosition.Left);
-            registerVariation(MergedCellBorderPosition.MiddleRight, x => x.Position == BorderPosition.Right);
-            registerVariation(MergedCellBorderPosition.MiddleLeftRight, x => x.Position == BorderPosition.Left || x.Position == BorderPosition.Right);
-            registerVariation(MergedCellBorderPosition.TopLeft, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Left);
-            registerVariation(MergedCellBorderPosition.TopCenter, x => x.Position == BorderPosition.Top);
-            registerVariation(MergedCellBorderPosition.TopRight, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Right);
-            registerVariation(MergedCellBorderPosition.TopLeftRight, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Left || x.Position == BorderPosition.Right);
-            registerVariation(MergedCellBorderPosition.BottomLeft, x => x.Position == BorderPosition.Bottom || x.Position == BorderPosition.Left);
-            registerVariation(MergedCellBorderPosition.BottomCenter, x => x.Position == BorderPosition.Bottom);
-            registerVariation(MergedCellBorderPosition.BottomRight, x => x.Position == BorderPosition.Bottom || x.Position == BorderPosition.Right);
-            registerVariation(MergedCellBorderPosition.BottomLeftRight, x => x.Position == BorderPosition.Bottom || x.Position == BorderPosition.Left || x.Position == BorderPosition.Right);
-            registerVariation(MergedCellBorderPosition.TopBottomLeft, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Bottom || x.Position == BorderPosition.Left);
-            registerVariation(MergedCellBorderPosition.TopBottomCenter, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Bottom);
-            registerVariation(MergedCellBorderPosition.TopBottomRight, x => x.Position == BorderPosition.Top || x.Position == BorderPosition.Bottom || x.Position == BorderPosition.Right);
-
-            return map;
-        }
-        
         private async Task WriteStylesXmlAsync(Stream stream)
         {
             using (var writer = new StreamWriter(stream))

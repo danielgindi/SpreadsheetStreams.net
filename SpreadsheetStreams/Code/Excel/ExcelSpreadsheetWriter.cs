@@ -43,16 +43,18 @@ namespace SpreadsheetStreams
 
             if (disposing)
             {
-                if (_Package != null)
-                {
-                    _Package.Dispose();
-                    _Package = null;
-                }
-
+                // owned by package, dispose first
                 if (_CurrentWorksheetPartWriter != null)
                 {
                     _CurrentWorksheetPartWriter.Dispose();
                     _CurrentWorksheetPartWriter = null;
+                    _CurrentWorksheetPartStream = null; // closed by writer's Close
+                }
+
+                if (_Package != null)
+                {
+                    _Package.Dispose();
+                    _Package = null;
                 }
 
                 if (_XmlWriterHelper != null)
@@ -881,87 +883,88 @@ namespace SpreadsheetStreams
             await _Package.CommitRelationshipsAsync(_CompressionLevel);
             await _Package.CommitContentTypesAsync(_CompressionLevel);
             _Package.Close();
+            _Package.Dispose();
 
             _Package = null;
         }
 
         private async Task WritePendingBeginWorksheetAsync()
         {
-            if (_ShouldBeginWorksheet)
+            if (!_ShouldBeginWorksheet)
+                return;
+            
+            if (_CurrentWorksheetPartWriter != null)
             {
-                if (_CurrentWorksheetPartWriter != null)
-                {
-                    _CurrentWorksheetPartWriter.Dispose();
-                }
-
-                _CurrentWorksheetEntry = _Package.CreateStream(_CurrentWorksheetInfo.Path, _CompressionLevel);
-                _CurrentWorksheetPartStream = _CurrentWorksheetEntry.Open();
-                _CurrentWorksheetPartWriter = new StreamWriter(_CurrentWorksheetPartStream, Encoding.UTF8);
-
-                await _CurrentWorksheetPartWriter.WriteAsync("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n").ConfigureAwait(false);
-                await _CurrentWorksheetPartWriter.WriteAsync("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"x14ac\" xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\">").ConfigureAwait(false);
-                {
-                    await _CurrentWorksheetPartWriter.WriteAsync("<sheetViews><sheetView").ConfigureAwait(false);
-                    if (_CurrentWorksheetInfo.RightToLeft != null)
-                    {
-                        await _CurrentWorksheetPartWriter.WriteAsync($" rightToLeft=\"{(_CurrentWorksheetInfo.RightToLeft == true ? "1" : "0")}\"").ConfigureAwait(false);
-                    }
-                    await _CurrentWorksheetPartWriter.WriteAsync(" workbookViewId=\"0\">").ConfigureAwait(false);
-
-                    if (_CurrentWorksheePane != null &&
-                        (_CurrentWorksheePane.Value.Column > 1 || _CurrentWorksheePane.Value.Row > 1))
-                    {
-                        await _CurrentWorksheetPartWriter.WriteAsync(@"<pane").ConfigureAwait(false);
-
-                        if (_CurrentWorksheePane.Value.Column > 1)
-                            await _CurrentWorksheetPartWriter.WriteAsync($@" xSplit=""{_CurrentWorksheePane.Value.Column - 1}""").ConfigureAwait(false);
-
-                        if (_CurrentWorksheePane.Value.Row > 1)
-                            await _CurrentWorksheetPartWriter.WriteAsync($@" ySplit=""{_CurrentWorksheePane.Value.Row - 1}""").ConfigureAwait(false);
-
-                        await _CurrentWorksheetPartWriter.WriteAsync($@" topLeftCell=""{ConvertColumnAddress(_CurrentWorksheePane.Value.Column)}{_CurrentWorksheePane.Value.Row}""").ConfigureAwait(false);
-                        await _CurrentWorksheetPartWriter.WriteAsync($@" activePane=""bottomRight""").ConfigureAwait(false);
-                        await _CurrentWorksheetPartWriter.WriteAsync(@" state=""frozen""/>").ConfigureAwait(false);
-                    }
-
-                    await _CurrentWorksheetPartWriter.WriteAsync("</sheetView></sheetViews>").ConfigureAwait(false);
-
-                    await _CurrentWorksheetPartWriter.WriteAsync("<sheetFormatPr").ConfigureAwait(false);
-
-                    if (_CurrentWorksheetInfo.DefaultRowHeight != null)
-                        await _CurrentWorksheetPartWriter.WriteAsync(string.Format(
-                            " defaultRowHeight=\"{0:G}\"",
-                            Math.Max(0f, Math.Min(_CurrentWorksheetInfo.DefaultRowHeight.Value, 409.5f)))).ConfigureAwait(false);
-
-                    if (_CurrentWorksheetInfo.DefaultColumnWidth != null)
-                        await _CurrentWorksheetPartWriter.WriteAsync(string.Format(" baseColWidth=\"{0:G}\"", _CurrentWorksheetInfo.DefaultColumnWidth)).ConfigureAwait(false);
-
-                    await _CurrentWorksheetPartWriter.WriteAsync("/>").ConfigureAwait(false);
-
-                    var sb = new StringBuilder();
-                    if (_CurrentWorksheetInfo.ColumnWidths != null)
-                    {
-                        for (int i = 0; i < _CurrentWorksheetInfo.ColumnWidths.Length; i++)
-                        {
-                            var w = _CurrentWorksheetInfo.ColumnWidths[i];
-                            if (w == 0f || w == _CurrentWorksheetInfo.DefaultColumnWidth) continue;
-
-                            sb.Append($"<col min=\"{i + 1}\" max=\"{i + 1}\" width=\"{w:G}\" bestFit=\"1\" customWidth=\"1\"/>");
-                        }
-                    }
-
-                    if (sb.Length > 0)
-                    {
-                        await _CurrentWorksheetPartWriter.WriteAsync("<cols>").ConfigureAwait(false);
-                        await _CurrentWorksheetPartWriter.WriteAsync(sb.ToString()).ConfigureAwait(false);
-                        await _CurrentWorksheetPartWriter.WriteAsync("</cols>").ConfigureAwait(false);
-                    }
-
-                    await _CurrentWorksheetPartWriter.WriteAsync("<sheetData>").ConfigureAwait(false);
-                }
-
-                _ShouldBeginWorksheet = false;
+                _CurrentWorksheetPartWriter.Dispose();
             }
+
+            _CurrentWorksheetEntry = _Package.CreateStream(_CurrentWorksheetInfo.Path, _CompressionLevel);
+            _CurrentWorksheetPartStream = _CurrentWorksheetEntry.Open();
+            _CurrentWorksheetPartWriter = new StreamWriter(_CurrentWorksheetPartStream, Encoding.UTF8);
+
+            await _CurrentWorksheetPartWriter.WriteAsync("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n").ConfigureAwait(false);
+            await _CurrentWorksheetPartWriter.WriteAsync("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"x14ac\" xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\">").ConfigureAwait(false);
+            {
+                await _CurrentWorksheetPartWriter.WriteAsync("<sheetViews><sheetView").ConfigureAwait(false);
+                if (_CurrentWorksheetInfo.RightToLeft != null)
+                {
+                    await _CurrentWorksheetPartWriter.WriteAsync($" rightToLeft=\"{(_CurrentWorksheetInfo.RightToLeft == true ? "1" : "0")}\"").ConfigureAwait(false);
+                }
+                await _CurrentWorksheetPartWriter.WriteAsync(" workbookViewId=\"0\">").ConfigureAwait(false);
+
+                if (_CurrentWorksheePane != null &&
+                    (_CurrentWorksheePane.Value.Column > 1 || _CurrentWorksheePane.Value.Row > 1))
+                {
+                    await _CurrentWorksheetPartWriter.WriteAsync(@"<pane").ConfigureAwait(false);
+
+                    if (_CurrentWorksheePane.Value.Column > 1)
+                        await _CurrentWorksheetPartWriter.WriteAsync($@" xSplit=""{_CurrentWorksheePane.Value.Column - 1}""").ConfigureAwait(false);
+
+                    if (_CurrentWorksheePane.Value.Row > 1)
+                        await _CurrentWorksheetPartWriter.WriteAsync($@" ySplit=""{_CurrentWorksheePane.Value.Row - 1}""").ConfigureAwait(false);
+
+                    await _CurrentWorksheetPartWriter.WriteAsync($@" topLeftCell=""{ConvertColumnAddress(_CurrentWorksheePane.Value.Column)}{_CurrentWorksheePane.Value.Row}""").ConfigureAwait(false);
+                    await _CurrentWorksheetPartWriter.WriteAsync($@" activePane=""bottomRight""").ConfigureAwait(false);
+                    await _CurrentWorksheetPartWriter.WriteAsync(@" state=""frozen""/>").ConfigureAwait(false);
+                }
+
+                await _CurrentWorksheetPartWriter.WriteAsync("</sheetView></sheetViews>").ConfigureAwait(false);
+
+                await _CurrentWorksheetPartWriter.WriteAsync("<sheetFormatPr").ConfigureAwait(false);
+
+                if (_CurrentWorksheetInfo.DefaultRowHeight != null)
+                    await _CurrentWorksheetPartWriter.WriteAsync(string.Format(
+                        " defaultRowHeight=\"{0:G}\"",
+                        Math.Max(0f, Math.Min(_CurrentWorksheetInfo.DefaultRowHeight.Value, 409.5f)))).ConfigureAwait(false);
+
+                if (_CurrentWorksheetInfo.DefaultColumnWidth != null)
+                    await _CurrentWorksheetPartWriter.WriteAsync(string.Format(" baseColWidth=\"{0:G}\"", _CurrentWorksheetInfo.DefaultColumnWidth)).ConfigureAwait(false);
+
+                await _CurrentWorksheetPartWriter.WriteAsync("/>").ConfigureAwait(false);
+
+                var sb = new StringBuilder();
+                if (_CurrentWorksheetInfo.ColumnWidths != null)
+                {
+                    for (int i = 0; i < _CurrentWorksheetInfo.ColumnWidths.Length; i++)
+                    {
+                        var w = _CurrentWorksheetInfo.ColumnWidths[i];
+                        if (w == 0f || w == _CurrentWorksheetInfo.DefaultColumnWidth) continue;
+
+                        sb.Append($"<col min=\"{i + 1}\" max=\"{i + 1}\" width=\"{w:G}\" bestFit=\"1\" customWidth=\"1\"/>");
+                    }
+                }
+
+                if (sb.Length > 0)
+                {
+                    await _CurrentWorksheetPartWriter.WriteAsync("<cols>").ConfigureAwait(false);
+                    await _CurrentWorksheetPartWriter.WriteAsync(sb.ToString()).ConfigureAwait(false);
+                    await _CurrentWorksheetPartWriter.WriteAsync("</cols>").ConfigureAwait(false);
+                }
+
+                await _CurrentWorksheetPartWriter.WriteAsync("<sheetData>").ConfigureAwait(false);
+            }
+
+            _ShouldBeginWorksheet = false;
         }
 
         private async Task WritePendingEndRowAsync()
@@ -981,35 +984,38 @@ namespace SpreadsheetStreams
         
         private async Task WritePendingEndWorksheetAsync()
         {
-            if (_ShouldEndWorksheet)
-            {
+            if (!_ShouldEndWorksheet)
+                return;
+                
+            if (_ShouldBeginWorksheet)
                 await WritePendingBeginWorksheetAsync();
-                await WritePendingEndRowAsync();
 
-                await _CurrentWorksheetPartWriter.WriteAsync("</sheetData>").ConfigureAwait(false);
+            await WritePendingEndRowAsync();
 
-                if (_MergeCells.Count > 0)
+            await _CurrentWorksheetPartWriter.WriteAsync("</sheetData>").ConfigureAwait(false);
+
+            if (_MergeCells.Count > 0)
+            {
+                await _CurrentWorksheetPartWriter.WriteAsync($"<mergeCells count=\"{_MergeCells.Count}\">").ConfigureAwait(false);
+
+                foreach (var merge in _MergeCells)
                 {
-                    await _CurrentWorksheetPartWriter.WriteAsync($"<mergeCells count=\"{_MergeCells.Count}\">").ConfigureAwait(false);
-
-                    foreach (var merge in _MergeCells)
-                    {
-                        await _CurrentWorksheetPartWriter.WriteAsync($"<mergeCell ref=\"{merge}\" />").ConfigureAwait(false);
-                    }
-
-                    await _CurrentWorksheetPartWriter.WriteAsync("</mergeCells>").ConfigureAwait(false);
+                    await _CurrentWorksheetPartWriter.WriteAsync($"<mergeCell ref=\"{merge}\" />").ConfigureAwait(false);
                 }
 
-                await _CurrentWorksheetPartWriter.WriteAsync("</worksheet>").ConfigureAwait(false);
-
-                if (_CurrentWorksheetPartWriter != null)
-                {
-                    _CurrentWorksheetPartWriter.Dispose();
-                    _CurrentWorksheetPartWriter = null;
-                }
-
-                _ShouldEndWorksheet = false;
+                await _CurrentWorksheetPartWriter.WriteAsync("</mergeCells>").ConfigureAwait(false);
             }
+
+            await _CurrentWorksheetPartWriter.WriteAsync("</worksheet>").ConfigureAwait(false);
+
+            if (_CurrentWorksheetPartWriter != null)
+            {
+                _CurrentWorksheetPartWriter.Dispose();
+                _CurrentWorksheetPartWriter = null;
+                _CurrentWorksheetPartStream = null;
+            }
+
+            _ShouldEndWorksheet = false;
         }
 
         private void BeginFile()

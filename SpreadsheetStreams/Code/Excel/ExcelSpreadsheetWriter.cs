@@ -1396,10 +1396,12 @@ namespace SpreadsheetStreams
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            if (data.Year >= 1900)
+            var oaDate = data.ToOADate();
+            
+            if (oaDate >= 0)
             {
                 await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
-                await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data.ToOADate())).ConfigureAwait(false);
+                await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", oaDate)).ConfigureAwait(false);
                 await WriteCellFooterAsync();
             }
             else

@@ -115,6 +115,8 @@ namespace SpreadsheetStreams
                 await AddCellAsync((DateTime)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else if (data is string)
                 await AddCellAsync((string)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
+            else if (data == null)
+                await AddCellAsync("", style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else
                 await AddCellAsync(data.ToString(), style, horzCellCount, vertCellCount).ConfigureAwait(false);
         }

@@ -1241,7 +1241,7 @@ namespace SpreadsheetStreams
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            if (data.Length > 32767)
+            if (data  != null && data.Length > 32767)
                 data = data.Remove(32767);
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "str", style);
@@ -1270,7 +1270,7 @@ namespace SpreadsheetStreams
                 type = "n";
             }
 
-            if (data.Length > 32767)
+            if (data != null && data.Length > 32767)
                 data = data.Remove(32767);
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, type, style);

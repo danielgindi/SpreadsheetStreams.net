@@ -120,6 +120,8 @@ namespace SpreadsheetStreams
         public const int MIN_COLUMN_NUMBER = 1;
         public const int MAX_COLUMN_NUMBER = 16384;
 
+        public bool EnableFormulaProtection { get; set; } = true;
+
         #endregion
 
         #region Private helpers
@@ -1241,7 +1243,10 @@ namespace SpreadsheetStreams
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            if (data  != null && data.Length > 32767)
+            if (data != null && EnableFormulaProtection && data.StartsWith("="))
+                data = "'" + data;
+
+            if (data != null && data.Length > 32767)
                 data = data.Remove(32767);
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "str", style);
@@ -1269,6 +1274,9 @@ namespace SpreadsheetStreams
             {
                 type = "n";
             }
+
+            if (data != null && EnableFormulaProtection && data.StartsWith("="))
+                data = "'" + data;
 
             if (data != null && data.Length > 32767)
                 data = data.Remove(32767);

@@ -383,13 +383,16 @@ namespace SpreadsheetStreams
                     if (item.VerticalAlign == FontVerticalAlign.Subscript) await writer.WriteAsync("<vertAlign val=\"subscript\"/>").ConfigureAwait(false);
                     if (item.VerticalAlign == FontVerticalAlign.Superscript) await writer.WriteAsync("<vertAlign val=\"superscript\"/>").ConfigureAwait(false);
 
-                    await writer.WriteAsync($"<sz val=\"{item.Size.ToString("G", _Culture)}\"/>").ConfigureAwait(false);
+                    if (item.Size > 0)
+                        await writer.WriteAsync($"<sz val=\"{item.Size.ToString("G", _Culture)}\"/>").ConfigureAwait(false);
 
                     if (item.Color != Color.Empty)
                         await writer.WriteAsync($"<color rgb=\"{ColorHelper.GetHexArgb(item.Color)}\"/>").ConfigureAwait(false);
                     else await writer.WriteAsync("<color auto=\"1\"/>").ConfigureAwait(false);
 
-                    await writer.WriteAsync($"<name val=\"{item.Name}\"/>").ConfigureAwait(false);
+                    if (!string.IsNullOrEmpty(item.Name))
+                        await writer.WriteAsync($"<name val=\"{item.Name}\"/>").ConfigureAwait(false);
+                    
                     await writer.WriteAsync($"<family val=\"{GetFontFamilyNumbering(item.Family)}\"/>").ConfigureAwait(false);
 
                     if (item.Charset != null)
@@ -676,7 +679,6 @@ namespace SpreadsheetStreams
             if (columnNumber > MAX_COLUMN_NUMBER || columnNumber < MIN_COLUMN_NUMBER)
             {
                 throw new Exception($"The column number ({columnNumber}) is out of range. Range is from {MIN_COLUMN_NUMBER} to {MAX_COLUMN_NUMBER}.");
-
             }
 
             const int @base = 26;

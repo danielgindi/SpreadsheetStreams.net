@@ -5,7 +5,10 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+
+#nullable enable
 
 namespace SpreadsheetStreams
 {
@@ -24,10 +27,6 @@ namespace SpreadsheetStreams
             : this(outputStream, Encoding.UTF8)
         {
 
-        }
-
-        public XmlSpreadsheetWriter() : this(null, null)
-        {
         }
 
         #endregion
@@ -61,7 +60,7 @@ namespace SpreadsheetStreams
         private CultureInfo _Culture = CultureInfo.InvariantCulture;
 
         private Encoding _FileEncoding = Encoding.UTF8;
-        private StreamWriter _Writer = null;
+        private StreamWriter? _Writer = null;
 
         private bool _WroteFileStart = false;
         private bool _WroteFileEnd = false;
@@ -72,10 +71,10 @@ namespace SpreadsheetStreams
         private int _NextStyleIndex = 1;
         private Dictionary<Style, int> _Styles = new Dictionary<Style, int>();
         private int _WorksheetCount = 0;
-        private WorksheetInfo _CurrentWorksheetInfo = null;
+        private WorksheetInfo? _CurrentWorksheetInfo = null;
         private List<string> _Columns = new List<string>();
 
-        private XmlWriterHelper _XmlWriterHelper = new XmlWriterHelper();
+        private XmlWriterHelper? _XmlWriterHelper = new XmlWriterHelper();
 
         #endregion
 
@@ -111,7 +110,7 @@ namespace SpreadsheetStreams
         
         private async Task WriteAsync(string data)
         {
-            await _Writer.WriteAsync(data).ConfigureAwait(false);
+            await _Writer!.WriteAsync(data).ConfigureAwait(false);
         }
 
         private string GetStyleId(Style style, bool allowRegister = true)
@@ -165,7 +164,7 @@ namespace SpreadsheetStreams
 
                 await WriteAsync(@"<ss:Alignment"); // Opening tag
 
-                string horz = null;
+                string? horz = null;
                 switch (align.Horizontal)
                 {
                     default:
@@ -185,7 +184,7 @@ namespace SpreadsheetStreams
                 if (align.Indent > 0) // 0 is default
                     await WriteAsync(string.Format(@" ss:Indent=""{0}""", align.Indent));
 
-                string readingOrder = null;
+                string? readingOrder = null;
                 switch (align.ReadingOrder)
                 {
                     default:
@@ -203,7 +202,7 @@ namespace SpreadsheetStreams
                 if (align.ShrinkToFit) // FALSE is default
                     await WriteAsync(@" ss:ShrinkToFit=""1""");
 
-                string vert = null;
+                string? vert = null;
                 switch (align.Vertical)
                 {
                     default:
@@ -234,7 +233,7 @@ namespace SpreadsheetStreams
 
             if (style.NumberFormat.Type != NumberFormatType.None)
             {
-                await WriteAsync(string.Format(@"<ss:NumberFormat ss:Format=""{0}""/>", _XmlWriterHelper.EscapeAttribute(ConvertNumberFormat(style.NumberFormat))));
+                await WriteAsync(string.Format(@"<ss:NumberFormat ss:Format=""{0}""/>", XmlWriterHelper.EscapeSimpleXmlAttr(ConvertNumberFormat(style.NumberFormat))));
             }
 
             if (style.Borders != null && style.Borders.Count > 0)
@@ -245,67 +244,67 @@ namespace SpreadsheetStreams
                 {
                     await WriteAsync(@"<ss:Border"); // Opening tag
 
-                    string Position = null;
+                    string? position = null;
                     switch (border.Position)
                     {
                         default:
                         case BorderPosition.Left:
-                            Position = @"Left";
+                            position = @"Left";
                             break;
                         case BorderPosition.Top:
-                            Position = @"Top";
+                            position = @"Top";
                             break;
                         case BorderPosition.Right:
-                            Position = @"Right";
+                            position = @"Right";
                             break;
                         case BorderPosition.Bottom:
-                            Position = @"Bottom";
+                            position = @"Bottom";
                             break;
                         case BorderPosition.DiagonalLeft:
-                            Position = @"DiagonalLeft";
+                            position = @"DiagonalLeft";
                             break;
                         case BorderPosition.DiagonalRight:
-                            Position = @"DiagonalRight";
+                            position = @"DiagonalRight";
                             break;
                     }
-                    await WriteAsync($@" ss:Position=""{Position}"""); // Required
+                    await WriteAsync($@" ss:Position=""{position}"""); // Required
 
                     if (!ColorHelper.IsTransparentOrEmpty(border.Color))
                     {
                         await WriteAsync($@" ss:Color=""#{ColorHelper.GetHexRgb(border.Color)}""");
                     }
 
-                    string LineStyle = null;
+                    string? lineStyle = null;
                     switch (border.LineStyle)
                     {
                         default:
                         case BorderLineStyle.None: // Default
                             break;
                         case BorderLineStyle.Continuous:
-                            LineStyle = @"Continuous";
+                            lineStyle = @"Continuous";
                             break;
                         case BorderLineStyle.Dash:
-                            LineStyle = @"Dash";
+                            lineStyle = @"Dash";
                             break;
                         case BorderLineStyle.Dot:
-                            LineStyle = @"Dot";
+                            lineStyle = @"Dot";
                             break;
                         case BorderLineStyle.DashDot:
-                            LineStyle = @"DashDot";
+                            lineStyle = @"DashDot";
                             break;
                         case BorderLineStyle.DashDotDot:
-                            LineStyle = @"DashDotDot";
+                            lineStyle = @"DashDotDot";
                             break;
                         case BorderLineStyle.SlantDashDot:
-                            LineStyle = @"SlantDashDot";
+                            lineStyle = @"SlantDashDot";
                             break;
                         case BorderLineStyle.Double:
-                            LineStyle = @"Double";
+                            lineStyle = @"Double";
                             break;
                     }
-                    if (LineStyle != null)
+                    if (lineStyle != null)
                     {
-                        await WriteAsync($@" ss:LineStyle=""{LineStyle}""");
+                        await WriteAsync($@" ss:LineStyle=""{lineStyle}""");
                     }
 
                     if (border.Weight > 0.0) // 0 is default
@@ -332,7 +331,7 @@ namespace SpreadsheetStreams
                 if (!ColorHelper.IsTransparentOrEmpty(bgColor))
                     await WriteAsync($@" ss:Color=""#{ColorHelper.GetHexRgb(bgColor)}""");
 
-                string pattern = null;
+                string? pattern = null;
                 switch (fill.Pattern)
                 {
                     default:
@@ -384,7 +383,7 @@ namespace SpreadsheetStreams
 
                 if (font.Name != null && font.Name.Length > 0)
                 {
-                    await WriteAsync($@" ss:FontName=""{_XmlWriterHelper.EscapeAttribute(font.Name)}""");
+                    await WriteAsync($@" ss:FontName=""{XmlWriterHelper.EscapeSimpleXmlAttr(font.Name)}""");
                 }
 
                 if (font.Italic) // FALSE is default
@@ -402,7 +401,7 @@ namespace SpreadsheetStreams
                 if (font.StrikeThrough) // FALSE is default
                     await WriteAsync(@" ss:StrikeThrough=""1""");
 
-                string underline = null;
+                string? underline = null;
                 switch (font.Underline)
                 {
                     default:
@@ -416,7 +415,7 @@ namespace SpreadsheetStreams
                 if (underline != null)
                     await WriteAsync($@" ss:Underline=""{underline}""");
 
-                string verticalAlign = null;
+                string? verticalAlign = null;
                 switch (font.VerticalAlign)
                 {
                     default:
@@ -431,7 +430,7 @@ namespace SpreadsheetStreams
                 if (font.Charset != null && (int)font.Charset.Value > 0) // 0 is default
                     await WriteAsync(string.Format(_Culture, @" ss:CharSet=""{0}""", (int)font.Charset.Value));
 
-                string family = null;
+                string? family = null;
                 switch (font.Family)
                 {
                     default:
@@ -469,7 +468,7 @@ namespace SpreadsheetStreams
         {
             if (_ShouldBeginWorksheet)
             {
-                await WriteAsync($"<Worksheet ss:Name=\"{_XmlWriterHelper.EscapeAttribute(_CurrentWorksheetInfo.Name ?? $"Worksheet{_WorksheetCount}")}\"");
+                await WriteAsync($"<Worksheet ss:Name=\"{_XmlWriterHelper!.EscapeAttribute(_CurrentWorksheetInfo!.Name ?? $"Worksheet{_WorksheetCount}")}\"");
 
                 if (_CurrentWorksheetInfo.RightToLeft != null)
                     await WriteAsync($" ss:RightToLeft=\"{(_CurrentWorksheetInfo.RightToLeft == true ? "1" : "0")}\"");
@@ -592,7 +591,7 @@ namespace SpreadsheetStreams
             }
         }
         
-        public override async Task AddRowAsync(Style style = null, float height = 0f, bool autoFit = true)
+        public override async Task AddRowAsync(Style? style = null, float height = 0f, bool autoFit = true)
         {
             if (!_ShouldEndWorksheet)
             {
@@ -645,7 +644,7 @@ namespace SpreadsheetStreams
                 await WriteAsync("</Workbook>");
                 _WroteFileEnd = true;
 
-                _Writer.Flush();
+                _Writer!.Flush();
                 _Writer.Close();
             }
         }
@@ -667,15 +666,15 @@ namespace SpreadsheetStreams
             }
         }
         
-        public override async Task AddCellAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(string? data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
 
-            await WriteAsync(string.Format("<Cell{0}{1}><Data ss:Type=\"String\">{2}</Data></Cell>", styleString, merge, _XmlWriterHelper.EscapeValue(data)));
+            await WriteAsync(string.Format("<Cell{0}{1}><Data ss:Type=\"String\">{2}</Data></Cell>", styleString, merge, _XmlWriterHelper!.EscapeValue(data)));
         }
 
-        public override async Task AddCellStringAutoTypeAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellStringAutoTypeAsync(string? data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
@@ -691,15 +690,15 @@ namespace SpreadsheetStreams
                 type = "Number";
             }
 
-            await WriteAsync(string.Format("<Cell{0}{1}><Data ss:Type=\"{2}\">{3}</Data></Cell>", styleString, merge, type, _XmlWriterHelper.EscapeValue(data)));
+            await WriteAsync(string.Format("<Cell{0}{1}><Data ss:Type=\"{2}\">{3}</Data></Cell>", styleString, merge, type, _XmlWriterHelper!.EscapeValue(data)));
         }
 
-        public override async Task AddCellForcedStringAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellForcedStringAsync(string? data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             await AddCellAsync(data, style, horzCellCount, vertCellCount);
         }
 
-        public override async Task AddCellAsync(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(Int32 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
@@ -707,7 +706,7 @@ namespace SpreadsheetStreams
         }
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public override async Task AddCellAsync(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(UInt32 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
@@ -715,7 +714,7 @@ namespace SpreadsheetStreams
         }
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public override async Task AddCellAsync(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(Int64 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
@@ -723,7 +722,7 @@ namespace SpreadsheetStreams
         }
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public override async Task AddCellAsync(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(UInt64 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
@@ -731,28 +730,28 @@ namespace SpreadsheetStreams
         }
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public override async Task AddCellAsync(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(float data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
             await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 
-        public override async Task AddCellAsync(double data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(double data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
             await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 
-        public override async Task AddCellAsync(decimal data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(decimal data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
             await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
         }
 
-        public override async Task AddCellAsync(DateTime data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(DateTime data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
@@ -761,13 +760,22 @@ namespace SpreadsheetStreams
                 data.Year <= 1 ? "" : data.ToString("yyyy-MM-ddTHH:mm:ss.fff")));
         }
 
-        public override async Task AddCellFormulaAsync(string formula, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellFormulaAsync(string formula, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
 
             await WriteAsync(string.Format("<Cell{0}{1} ss:Formula=\"{2}\" />",
-                styleString, merge, _XmlWriterHelper.EscapeAttribute(formula)));
+                styleString, merge, XmlWriterHelper.EscapeSimpleXmlAttr(formula)));
+        }
+        public override Task AddCellImageAsync(
+            Image image,
+            Style? style = null,
+            int horzCellCount = 0,
+            int vertCellCount = 0,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
         }
 
         #endregion

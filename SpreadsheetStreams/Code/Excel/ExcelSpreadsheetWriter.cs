@@ -1,4 +1,5 @@
-﻿using SpreadsheetStreams.Util;
+﻿using SpreadsheetStreams.Code.Excel;
+using SpreadsheetStreams.Util;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -8,7 +9,11 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Xml;
+
+#nullable enable
 
 namespace SpreadsheetStreams
 {
@@ -17,7 +22,7 @@ namespace SpreadsheetStreams
         #region Constructors
 
         public ExcelSpreadsheetWriter(Stream outputStream, CompressionLevel compressionLevel = CompressionLevel.Fastest, bool leaveOpen = false)
-            : base(outputStream ?? new MemoryStream())
+            : base(outputStream)
         {
             if (outputStream.GetType().FullName == "System.Web.HttpResponseStream")
             {
@@ -29,7 +34,7 @@ namespace SpreadsheetStreams
             _CompressionLevel = compressionLevel;
         }
 
-        public ExcelSpreadsheetWriter() : this(null)
+        public ExcelSpreadsheetWriter() : this(new MemoryStream())
         {
         }
 
@@ -49,6 +54,15 @@ namespace SpreadsheetStreams
                     _CurrentWorksheetPartWriter.Dispose();
                     _CurrentWorksheetPartWriter = null;
                     _CurrentWorksheetPartStream = null; // closed by writer's Close
+                }
+
+                if (_CurrentWorksheetTempPath != null)
+                {
+                    try
+                    {
+                        File.Delete(_CurrentWorksheetTempPath);
+                    }
+                    catch { }
                 }
 
                 if (_Package != null)
@@ -71,13 +85,13 @@ namespace SpreadsheetStreams
 
         private CultureInfo _Culture = CultureInfo.InvariantCulture;
 
-        private PackageWriteStream _Package = null;
+        private PackageWriteStream? _Package = null;
         private CompressionLevel _CompressionLevel = CompressionLevel.Fastest;
 
-        private ZipArchiveEntry _CurrentWorksheetEntry = null;
-        private Stream _CurrentWorksheetPartStream = null;
-        private StreamWriter _CurrentWorksheetPartWriter = null;
-        private WorksheetInfo _CurrentWorksheetInfo = null;
+        private string? _CurrentWorksheetTempPath = null;
+        private Stream? _CurrentWorksheetPartStream = null;
+        private StreamWriter? _CurrentWorksheetPartWriter = null;
+        private WorksheetInfo? _CurrentWorksheetInfo = null;
         private FrozenPaneState? _CurrentWorksheePane = null;
         private int _RowCount = 0;
         private int _CellCount = 0;
@@ -98,12 +112,12 @@ namespace SpreadsheetStreams
         private Dictionary<int, int> _StyleIdNumberFormatIdMap = new Dictionary<int, int>();
 
         private List<string> _MergeCells = new List<string>();
-        private Dictionary<int, List<(int x, Style style)>> _QueuedMergedCellStyles = new Dictionary<int, List<(int x, Style style)>>();
+        private Dictionary<int, List<(int x, Style? style)>> _QueuedMergedCellStyles = new Dictionary<int, List<(int x, Style? style)>>();
         private List<int> _QueuedRowIndexes = new List<int>();
         private int _NextQueuedRowIndex = 0;
         private int _MaxQueuedRowIndex = 0;
         
-        private XmlWriterHelper _XmlWriterHelper = new XmlWriterHelper();
+        private XmlWriterHelper? _XmlWriterHelper = new XmlWriterHelper();
 
         #endregion
 
@@ -148,9 +162,9 @@ namespace SpreadsheetStreams
             }
         }
 
-        private async System.Threading.Tasks.Task HandleMergedCells(int horzCellCount, int vertCellCount, Style style)
+        private async System.Threading.Tasks.Task HandleMergedCells(int horzCellCount, int vertCellCount, Style? style)
         {
-            if (horzCellCount > 1 && (style.Borders?.Count ?? 0) > 0)
+            if (horzCellCount > 1 && (style?.Borders?.Count ?? 0) > 0)
             {
                 for (int x = 2; x <= horzCellCount; x++)
                 {
@@ -158,7 +172,7 @@ namespace SpreadsheetStreams
                 }
             }
             
-            if (vertCellCount > 1 && (style.Borders?.Count ?? 0) > 0)
+            if (vertCellCount > 1 && (style?.Borders?.Count ?? 0) > 0)
             {
                 var maxY = _RowCount + vertCellCount - 1;
                 
@@ -166,7 +180,7 @@ namespace SpreadsheetStreams
                 {
                     if (!_QueuedMergedCellStyles.TryGetValue(y, out var mergedCellStyles))
                     {
-                        mergedCellStyles = new List<(int x, Style style)>();
+                        mergedCellStyles = new List<(int x, Style? style)>();
                         _QueuedMergedCellStyles[y] = mergedCellStyles;
 
                         if (_MaxQueuedRowIndex < y)
@@ -259,7 +273,7 @@ namespace SpreadsheetStreams
             }
         }
 
-        private (int, string) ConvertNumberFormat(NumberFormat format)
+        private (int, string?) ConvertNumberFormat(NumberFormat format)
         {
             switch (format.Type)
             {
@@ -299,7 +313,7 @@ namespace SpreadsheetStreams
             }
         }
 
-        private async Task<bool> WriteStyleBorderXmlAsync(StreamWriter writer, List<Border> items, bool writeEmpty, int id, int? styleId)
+        private async Task<bool> WriteStyleBorderXmlAsync(StreamWriter writer, List<Border>? items, bool writeEmpty, int id, int? styleId)
         {
             if (items == null)
             {
@@ -421,7 +435,7 @@ namespace SpreadsheetStreams
             }
             else
             {
-                var item = fill.Value;
+                var item = fill!.Value;
 
                 await writer.WriteAsync("<fill>").ConfigureAwait(false);
                 {
@@ -458,7 +472,7 @@ namespace SpreadsheetStreams
 
             if (convertedFormat.Item1 == -2)
             {
-                await writer.WriteAsync($"<numFmt numFmtId=\"{id}\" formatCode=\"{_XmlWriterHelper.EscapeAttribute(convertedFormat.Item2)}\"/>").ConfigureAwait(false);
+                await writer.WriteAsync($"<numFmt numFmtId=\"{id}\" formatCode=\"{XmlWriterHelper.EscapeSimpleXmlAttr(convertedFormat.Item2 ?? "")}\"/>").ConfigureAwait(false);
                 if (styleId != null) _StyleIdNumberFormatIdMap[styleId.Value] = id;
                 return true;
             }
@@ -518,7 +532,7 @@ namespace SpreadsheetStreams
                         await writer.WriteAsync($" textRotation=\"{Math.Max(-90d, Math.Min(90d, align.Rotate)).ToString("G", _Culture)}\"").ConfigureAwait(false);
                     }
 
-                    string horz = null;
+                    string? horz = null;
                     switch (align.Horizontal)
                     {
                         default:
@@ -535,7 +549,7 @@ namespace SpreadsheetStreams
                     if (horz != null)
                         await writer.WriteAsync($" horizontal=\"{horz}\"").ConfigureAwait(false);
 
-                    string vert = null;
+                    string? vert = null;
                     switch (align.Vertical)
                     {
                         default:
@@ -660,7 +674,7 @@ namespace SpreadsheetStreams
                     // Excel limits to 31 characters. Otherwise it's an error
                     name = name.Substring(0, Math.Min(name.Length, 31));
 
-                    await writer.WriteAsync($"<sheet r:id=\"rId{item.Id}\" sheetId=\"{item.Id}\" name=\"{_XmlWriterHelper.EscapeAttribute(name)}\"/>").ConfigureAwait(false);
+                    await writer.WriteAsync($"<sheet r:id=\"rId{item.Id}\" sheetId=\"{item.Id}\" name=\"{_XmlWriterHelper!.EscapeAttribute(name)}\"/>").ConfigureAwait(false);
                 }
 
                 await writer.WriteAsync("</sheets>").ConfigureAwait(false);
@@ -709,42 +723,35 @@ namespace SpreadsheetStreams
 
         #region SpreadsheetWriter - Document Lifespan (private)
 
+        private const string _WORKBOOK_PATH = "/xl/workbook.xml";
+
         private async Task EndPackageAsync()
         {
-            string workbookPath = "/xl/workbook.xml";
             string stylesheetPath = "/xl/styles.xml";
             string sharedStringsPath = "/xl/sharedStrings.xml";
             string docPropsCorePath = "/docProps/core.xml";
             string docPropsAppPath = "/docProps/app.xml";
 
-            var idCounter = _WorksheetInfos.Count + 1;
-
-            int ridWb = idCounter++;
-            int ridStyles = idCounter++;
-            int ridSharedStrings = idCounter++;
-            int ridDocPropsCore = idCounter++;
-            int ridDocPropsApp = idCounter++;
-
-            var wbEntry = _Package.CreateStream(workbookPath, _CompressionLevel);
+            var wbEntry = _Package!.CreateEntry(_WORKBOOK_PATH, _CompressionLevel);
             using (var stream = wbEntry.Open())
             {
-                _Package.AddPackageRelationship(workbookPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", "rId" + ridWb);
-                _Package.AddContentType(workbookPath, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml");
+                _Package.AddPackageRelationship(_WORKBOOK_PATH, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument");
+                _Package.AddContentType(_WORKBOOK_PATH, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml");
 
                 await WriteWorkbookXmlAsync(stream);
             }
 
-            var stylesEntry = _Package.CreateStream(stylesheetPath, _CompressionLevel);
+            var stylesEntry = _Package.CreateEntry(stylesheetPath, _CompressionLevel);
             using (var stream = stylesEntry.Open())
             {
-                _Package.AddPartRelationship(workbookPath, stylesheetPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles", "rId" + ridStyles);
+                _Package.AddPartRelationship(_WORKBOOK_PATH, stylesheetPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles");
                 _Package.AddContentType(stylesheetPath, "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml");
 
                 await WriteStylesXmlAsync(stream);
             }
 
-            var sharedStringsEntry = _Package.CreateStream(sharedStringsPath, _CompressionLevel);
-            _Package.AddPartRelationship(workbookPath, sharedStringsPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings", "rId" + ridSharedStrings);
+            var sharedStringsEntry = _Package.CreateEntry(sharedStringsPath, _CompressionLevel);
+            _Package.AddPartRelationship(_WORKBOOK_PATH, sharedStringsPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings");
             _Package.AddContentType(sharedStringsPath, "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml");
 
             using (var stream = sharedStringsEntry.Open())
@@ -754,16 +761,10 @@ namespace SpreadsheetStreams
                 await writer.WriteAsync("<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"0\" uniqueCount=\"0\"></sst>").ConfigureAwait(false);
             }
 
-            foreach (var ws in _WorksheetInfos)
-            {
-                _Package.AddPartRelationship(workbookPath, ws.Path, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet", "rId" + ws.Id);
-                _Package.AddContentType(ws.Path, "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml");
-            }
-
             if (SpreadsheetInfo != null)
             {
-                var docPropsCoreEntry = _Package.CreateStream(docPropsCorePath, _CompressionLevel);
-                _Package.AddPackageRelationship(docPropsCorePath, "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", "rId" + ridDocPropsCore);
+                var docPropsCoreEntry = _Package.CreateEntry(docPropsCorePath, _CompressionLevel);
+                _Package.AddPackageRelationship(docPropsCorePath, "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties");
                 _Package.AddContentType(docPropsCorePath, "application/vnd.openxmlformats-package.core-properties+xml");
 
                 using (var stream = docPropsCoreEntry.Open())
@@ -776,44 +777,46 @@ namespace SpreadsheetStreams
                         " xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\"" +
                         " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">").ConfigureAwait(false);
 
+                    var xmlWriter = _XmlWriterHelper!;
+
                     if (SpreadsheetInfo.Title != null)
                     {
-                        await writer.WriteAsync($"<dc:title>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Title)}</dc:title>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<dc:title>{xmlWriter.EscapeValue(SpreadsheetInfo.Title)}</dc:title>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.Subject != null)
                     {
-                        await writer.WriteAsync($"<dc:subject>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Subject)}</dc:subject>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<dc:subject>{xmlWriter.EscapeValue(SpreadsheetInfo.Subject)}</dc:subject>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.Author != null)
                     {
-                        await writer.WriteAsync($"<dc:creator>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Author)}</dc:creator>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<dc:creator>{xmlWriter.EscapeValue(SpreadsheetInfo.Author)}</dc:creator>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.Keywords != null)
                     {
-                        await writer.WriteAsync($"<cp:keywords>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Keywords)}</cp:keywords>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<cp:keywords>{xmlWriter.EscapeValue(SpreadsheetInfo.Keywords)}</cp:keywords>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.Comments != null)
                     {
-                        await writer.WriteAsync($"<dc:description>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Comments)}</dc:description>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<dc:description>{xmlWriter.EscapeValue(SpreadsheetInfo.Comments)}</dc:description>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.Status != null)
                     {
-                        await writer.WriteAsync($"<cp:contentStatus>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Status)}</cp:contentStatus>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<cp:contentStatus>{xmlWriter.EscapeValue(SpreadsheetInfo.Status)}</cp:contentStatus>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.Category != null)
                     {
-                        await writer.WriteAsync($"<cp:category>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Category)}</cp:category>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<cp:category>{xmlWriter.EscapeValue(SpreadsheetInfo.Category)}</cp:category>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.LastModifiedBy != null)
                     {
-                        await writer.WriteAsync($"<cp:lastModifiedBy>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.LastModifiedBy)}</cp:lastModifiedBy>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<cp:lastModifiedBy>{xmlWriter.EscapeValue(SpreadsheetInfo.LastModifiedBy)}</cp:lastModifiedBy>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.CreatedOn != null)
@@ -829,8 +832,8 @@ namespace SpreadsheetStreams
                     await writer.WriteAsync("</cp:coreProperties>").ConfigureAwait(false);
                 }
 
-                var docPropsAppEntry = _Package.CreateStream(docPropsAppPath, _CompressionLevel);
-                _Package.AddPackageRelationship(docPropsAppPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", "rId" + ridDocPropsApp);
+                var docPropsAppEntry = _Package.CreateEntry(docPropsAppPath, _CompressionLevel);
+                _Package.AddPackageRelationship(docPropsAppPath, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties");
                 _Package.AddContentType(docPropsAppPath, "application/vnd.openxmlformats-officedocument.extended-properties+xml");
 
                 using (var stream = docPropsAppEntry.Open())
@@ -840,9 +843,11 @@ namespace SpreadsheetStreams
                     await writer.WriteAsync("<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"" +
                         " xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\">").ConfigureAwait(false);
 
+                    var xmlWriter = _XmlWriterHelper!;
+
                     if (SpreadsheetInfo.Application != null)
                     {
-                        await writer.WriteAsync($"<Application>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Application)}</Application>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<Application>{xmlWriter.EscapeValue(SpreadsheetInfo.Application)}</Application>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.ScaleCrop != null)
@@ -852,12 +857,12 @@ namespace SpreadsheetStreams
 
                     if (SpreadsheetInfo.Manager != null)
                     {
-                        await writer.WriteAsync($"<Manager>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Manager)}</Manager>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<Manager>{xmlWriter.EscapeValue(SpreadsheetInfo.Manager)}</Manager>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.Company != null)
                     {
-                        await writer.WriteAsync($"<Company>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.Company)}</Company>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<Company>{xmlWriter.EscapeValue(SpreadsheetInfo.Company)}</Company>").ConfigureAwait(false);
                     }
 
                     if (SpreadsheetInfo.LinksUpToDate != null)
@@ -877,13 +882,14 @@ namespace SpreadsheetStreams
 
                     if (SpreadsheetInfo.AppVersion != null)
                     {
-                        await writer.WriteAsync($"<AppVersion>{_XmlWriterHelper.EscapeValue(SpreadsheetInfo.AppVersion)}</AppVersion>").ConfigureAwait(false);
+                        await writer.WriteAsync($"<AppVersion>{xmlWriter.EscapeValue(SpreadsheetInfo.AppVersion)}</AppVersion>").ConfigureAwait(false);
                     }
 
                     await writer.WriteAsync("</Properties>").ConfigureAwait(false);
                 }
             }
 
+            await _Package.CommitRichDataAsync(_CompressionLevel);
             await _Package.CommitRelationshipsAsync(_CompressionLevel);
             await _Package.CommitContentTypesAsync(_CompressionLevel);
             _Package.Close();
@@ -902,15 +908,16 @@ namespace SpreadsheetStreams
                 _CurrentWorksheetPartWriter.Dispose();
             }
 
-            _CurrentWorksheetEntry = _Package.CreateStream(_CurrentWorksheetInfo.Path, _CompressionLevel);
-            _CurrentWorksheetPartStream = _CurrentWorksheetEntry.Open();
+            _CurrentWorksheetTempPath = System.IO.Path.GetTempFileName();
+
+            _CurrentWorksheetPartStream = System.IO.File.Open(_CurrentWorksheetTempPath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
             _CurrentWorksheetPartWriter = new StreamWriter(_CurrentWorksheetPartStream, Encoding.UTF8);
 
             await _CurrentWorksheetPartWriter.WriteAsync("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n").ConfigureAwait(false);
             await _CurrentWorksheetPartWriter.WriteAsync("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"x14ac\" xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\">").ConfigureAwait(false);
             {
                 await _CurrentWorksheetPartWriter.WriteAsync("<sheetViews><sheetView").ConfigureAwait(false);
-                if (_CurrentWorksheetInfo.RightToLeft != null)
+                if (_CurrentWorksheetInfo!.RightToLeft != null)
                 {
                     await _CurrentWorksheetPartWriter.WriteAsync($" rightToLeft=\"{(_CurrentWorksheetInfo.RightToLeft == true ? "1" : "0")}\"").ConfigureAwait(false);
                 }
@@ -981,7 +988,7 @@ namespace SpreadsheetStreams
                 await WriteMergedCellCounterparts(_RowCount);
             }
 
-            await _CurrentWorksheetPartWriter.WriteAsync("</row>").ConfigureAwait(false);
+            await _CurrentWorksheetPartWriter!.WriteAsync("</row>").ConfigureAwait(false);
 
             _ShouldEndRow = false;
         }
@@ -996,7 +1003,7 @@ namespace SpreadsheetStreams
 
             await WritePendingEndRowAsync();
 
-            await _CurrentWorksheetPartWriter.WriteAsync("</sheetData>").ConfigureAwait(false);
+            await _CurrentWorksheetPartWriter!.WriteAsync("</sheetData>").ConfigureAwait(false);
 
             if (_MergeCells.Count > 0)
             {
@@ -1012,12 +1019,18 @@ namespace SpreadsheetStreams
 
             await _CurrentWorksheetPartWriter.WriteAsync("</worksheet>").ConfigureAwait(false);
 
-            if (_CurrentWorksheetPartWriter != null)
-            {
-                _CurrentWorksheetPartWriter.Dispose();
-                _CurrentWorksheetPartWriter = null;
-                _CurrentWorksheetPartStream = null;
-            }
+            await _CurrentWorksheetPartWriter!.FlushAsync();
+            _CurrentWorksheetPartWriter.Dispose();
+            _CurrentWorksheetPartWriter = null;
+            _CurrentWorksheetPartStream = null;
+
+            var packageEntry = _Package!.CreateEntry(_CurrentWorksheetInfo!.Path, _CompressionLevel);
+            var entryStream = packageEntry.Open();
+            using (var readStream = File.Open(_CurrentWorksheetTempPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                await readStream.CopyToAsync(entryStream);
+            entryStream.Dispose();
+            File.Delete(_CurrentWorksheetTempPath);
+            _CurrentWorksheetTempPath = null;
 
             _ShouldEndWorksheet = false;
         }
@@ -1039,9 +1052,12 @@ namespace SpreadsheetStreams
             if (_WorksheetInfos.Contains(info))
                 throw new InvalidOperationException("This WorksheetInfo object has already been added to the workbook");
 
+            info.Path = $"/xl/worksheets/sheet{_WorksheetInfos.Count + 1}.xml";
+
+            info.Id = _Package!.AddPartRelationship(_WORKBOOK_PATH, info.Path, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet");
+            _Package!.AddContentType(info.Path, "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml");
+
             _CurrentWorksheetInfo = info;
-            _CurrentWorksheetInfo.Id = _WorksheetInfos.Count > 0 ? _WorksheetInfos.Last().Id + 1 : 1;
-            _CurrentWorksheetInfo.Path = "/xl/worksheets/sheet" + _CurrentWorksheetInfo.Id + ".xml";
             _WorksheetInfos.Add(_CurrentWorksheetInfo);
 
             _CurrentWorksheePane = null;
@@ -1075,7 +1091,7 @@ namespace SpreadsheetStreams
                 
                 for (int y = _NextQueuedRowIndex; y <= max; y++)
                 {
-                    await _CurrentWorksheetPartWriter.WriteAsync($"<row r=\"{y}\">").ConfigureAwait(false);
+                    await _CurrentWorksheetPartWriter!.WriteAsync($"<row r=\"{y}\">").ConfigureAwait(false);
                     await WriteMergedCellCounterparts(y);
                     await _CurrentWorksheetPartWriter.WriteAsync($"</row>").ConfigureAwait(false);
 
@@ -1142,7 +1158,7 @@ namespace SpreadsheetStreams
             _CellCount = 0;
         }
         
-        public override async Task AddRowAsync(Style style = null, float height = 0f, bool autoFit = true)
+        public override async Task AddRowAsync(Style? style = null, float height = 0f, bool autoFit = true)
         {
             if (!_ShouldEndWorksheet)
             {
@@ -1165,16 +1181,16 @@ namespace SpreadsheetStreams
 
             _RowCount ++;
             _CellCount = 0;
-            await _CurrentWorksheetPartWriter.WriteAsync($"<row r=\"{_RowCount}\"").ConfigureAwait(false);
+            await _CurrentWorksheetPartWriter!.WriteAsync($"<row r=\"{_RowCount}\"").ConfigureAwait(false);
 
-            if (height != 0f && height != _CurrentWorksheetInfo.DefaultRowHeight)
+            if (height != 0f && height != _CurrentWorksheetInfo!.DefaultRowHeight)
             {
                 if (!autoFit)
                     await _CurrentWorksheetPartWriter.WriteAsync(" customHeight=\"1\"").ConfigureAwait(false);
 
                 await _CurrentWorksheetPartWriter.WriteAsync($" ht=\"{height.ToString("G", _Culture)}\"").ConfigureAwait(false);
             }
-            else if (_CurrentWorksheetInfo.DefaultRowHeight != null)
+            else if (_CurrentWorksheetInfo!.DefaultRowHeight != null)
             {
                 if (!autoFit)
                     await _CurrentWorksheetPartWriter.WriteAsync(" customHeight=\"1\"").ConfigureAwait(false);
@@ -1188,9 +1204,9 @@ namespace SpreadsheetStreams
             _ShouldEndRow = true;
         }
 
-        private async Task WriteCellHeaderAsync(int cellIndex, int rowIndex, bool closed, string type, Style style = null)
+        private async Task WriteCellHeaderAsync(int cellIndex, int rowIndex, bool closed, string? type, Style? style = null, int valueMetadataIndex = -1)
         {
-            await _CurrentWorksheetPartWriter.WriteAsync($"<c r=\"{ConvertColumnAddress(cellIndex)}{rowIndex}\"").ConfigureAwait(false);
+            await _CurrentWorksheetPartWriter!.WriteAsync($"<c r=\"{ConvertColumnAddress(cellIndex)}{rowIndex}\"").ConfigureAwait(false);
 
             if (type != null)
                 await _CurrentWorksheetPartWriter.WriteAsync(" t=\"" + type + "\"").ConfigureAwait(false);
@@ -1198,12 +1214,15 @@ namespace SpreadsheetStreams
             if (style != null)
                 await _CurrentWorksheetPartWriter.WriteAsync($" s=\"{GetStyleId(style)}\"").ConfigureAwait(false);
 
+            if (valueMetadataIndex > 0)
+                await _CurrentWorksheetPartWriter.WriteAsync($" vm=\"{valueMetadataIndex}\"").ConfigureAwait(false);
+
             await _CurrentWorksheetPartWriter.WriteAsync(closed ? "/>" : ">").ConfigureAwait(false);
         }
 
         private async Task WriteCellFooterAsync()
         {
-            await _CurrentWorksheetPartWriter.WriteAsync("</c>").ConfigureAwait(false);
+            await _CurrentWorksheetPartWriter!.WriteAsync("</c>").ConfigureAwait(false);
         }
 
         public override async Task FinishAsync()
@@ -1238,7 +1257,7 @@ namespace SpreadsheetStreams
             return Task.CompletedTask;
         }
 
-        public override async Task AddCellAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(string? data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
@@ -1251,22 +1270,22 @@ namespace SpreadsheetStreams
             if (data != null && data.Length > 32767)
                 data = data.Remove(32767);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "str", style);
-            await _CurrentWorksheetPartWriter.WriteAsync("<v>" + _XmlWriterHelper.EscapeValue(data) + "</v>").ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.FormulaString, style);
+            await _CurrentWorksheetPartWriter!.WriteAsync("<v>" + _XmlWriterHelper!.EscapeValue(data) + "</v>").ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
                 await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
-        public override async Task AddCellStringAutoTypeAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellStringAutoTypeAsync(string? data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            var type = "str";
+            var type = ExcelValueTypes.FormulaString;
 
             if (style?.NumberFormat != null && (
                 style.NumberFormat.Type == NumberFormatType.GeneralNumber ||
@@ -1274,7 +1293,7 @@ namespace SpreadsheetStreams
                 style.NumberFormat.Type == NumberFormatType.Fixed ||
                 style.NumberFormat.Type == NumberFormatType.Standard))
             {
-                type = "n";
+                type = ExcelValueTypes.Number;
             }
 
             if (data != null && EnableFormulaProtection && data.StartsWith("="))
@@ -1284,27 +1303,27 @@ namespace SpreadsheetStreams
                 data = data.Remove(32767);
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, type, style);
-            await _CurrentWorksheetPartWriter.WriteAsync("<v>" + _XmlWriterHelper.EscapeValue(data) + "</v>").ConfigureAwait(false);
+            await _CurrentWorksheetPartWriter!.WriteAsync("<v>" + _XmlWriterHelper!.EscapeValue(data) + "</v>").ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
                 await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
-        public override Task AddCellForcedStringAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override Task AddCellForcedStringAsync(string? data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             return AddCellAsync(data, style, horzCellCount, vertCellCount);
         }
 
-        public override async Task AddCellAsync(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(Int32 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
-            await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
+            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
@@ -1312,15 +1331,15 @@ namespace SpreadsheetStreams
         }
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public override async Task AddCellAsync(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(UInt32 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
-            await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
+            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
@@ -1328,15 +1347,15 @@ namespace SpreadsheetStreams
         }
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public override async Task AddCellAsync(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(Int64 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
-            await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
+            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
@@ -1344,15 +1363,15 @@ namespace SpreadsheetStreams
         }
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public override async Task AddCellAsync(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(UInt64 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
-            await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
+            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
@@ -1360,52 +1379,52 @@ namespace SpreadsheetStreams
         }
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public override async Task AddCellAsync(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(float data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
-            await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
+            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
                 await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
-        public override async Task AddCellAsync(double data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(double data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
-            await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
+            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
                 await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
-        public override async Task AddCellAsync(decimal data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(decimal data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
-            await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
+            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
                 await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
-        public override async Task AddCellAsync(DateTime data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellAsync(DateTime data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
@@ -1416,8 +1435,8 @@ namespace SpreadsheetStreams
             
             if (oaDate >= 0)
             {
-                await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "n", style);
-                await _CurrentWorksheetPartWriter.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", oaDate)).ConfigureAwait(false);
+                await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
+                await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", oaDate)).ConfigureAwait(false);
                 await WriteCellFooterAsync();
             }
             else
@@ -1429,15 +1448,44 @@ namespace SpreadsheetStreams
                 await HandleMergedCells(horzCellCount, vertCellCount, style);
         }
 
-        public override async Task AddCellFormulaAsync(string formula, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public override async Task AddCellFormulaAsync(string formula, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
 
             MergeNextCell(horzCellCount, vertCellCount);
 
-            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, "str", style);
-            await _CurrentWorksheetPartWriter.WriteAsync("<f>" + _XmlWriterHelper.EscapeValue(formula) + "</f>").ConfigureAwait(false);
+            await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.FormulaString, style);
+            await _CurrentWorksheetPartWriter!.WriteAsync("<f>" + _XmlWriterHelper!.EscapeValue(formula) + "</f>").ConfigureAwait(false);
+            await WriteCellFooterAsync();
+
+            if (horzCellCount > 1 || vertCellCount > 1)
+                await HandleMergedCells(horzCellCount, vertCellCount, style);
+        }
+
+        public async override Task AddCellImageAsync(
+            Image image,
+            Style? style = null,
+            int horzCellCount = 0, 
+            int vertCellCount = 0,
+            CancellationToken cancellationToken = default)
+        {
+            if (_NextQueuedRowIndex == _RowCount && _CellCount > 0)
+                await WriteMergedCellCounterparts(_RowCount, _CellCount);
+
+            MergeNextCell(horzCellCount, vertCellCount);
+
+            int vm = await _Package!.AddImageAsync(image, cancellationToken) + 1;
+
+            await WriteCellHeaderAsync(
+                cellIndex: _CellCount++ + 1,
+                rowIndex: _RowCount,
+                closed: false,
+                type: ExcelValueTypes.Error,
+                style: style,
+                valueMetadataIndex: vm);
+
+            await _CurrentWorksheetPartWriter!.WriteAsync("<v>" + ExcelErrors.Value + "</v>").ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)

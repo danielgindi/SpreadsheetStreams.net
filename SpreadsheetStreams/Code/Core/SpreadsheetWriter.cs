@@ -1,6 +1,10 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
+
+#nullable enable
 
 [assembly: CLSCompliant(true)]
 
@@ -10,7 +14,7 @@ namespace SpreadsheetStreams
     {
         #region Private Variables
 
-        internal Stream OutputStream = null;
+        internal Stream OutputStream;
 
         #endregion
 
@@ -61,7 +65,7 @@ namespace SpreadsheetStreams
 
         public abstract Task SkipRowsAsync(int count);
 
-        public abstract Task AddRowAsync(Style style = null, float height = 0f, bool autoFit = true);
+        public abstract Task AddRowAsync(Style? style = null, float height = 0f, bool autoFit = true);
 
         public abstract Task FinishAsync();
 
@@ -73,33 +77,33 @@ namespace SpreadsheetStreams
         
         public abstract Task SkipCellsAsync(int count);
             
-        public abstract Task AddCellAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(string? data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public abstract Task AddCellStringAutoTypeAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellStringAutoTypeAsync(string? data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public abstract Task AddCellForcedStringAsync(string data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellForcedStringAsync(string? data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public abstract Task AddCellAsync(Int32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
-
-#pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public abstract Task AddCellAsync(UInt32 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
-#pragma warning restore CS3001 // Argument type is not CLS-compliant
-
-        public abstract Task AddCellAsync(Int64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(Int32 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
 
 #pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public abstract Task AddCellAsync(UInt64 data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(UInt32 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
 #pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public abstract Task AddCellAsync(float data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(Int64 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public abstract Task AddCellAsync(double data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+#pragma warning disable CS3001 // Argument type is not CLS-compliant
+        public abstract Task AddCellAsync(UInt64 data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
+#pragma warning restore CS3001 // Argument type is not CLS-compliant
 
-        public abstract Task AddCellAsync(decimal data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(float data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public abstract Task AddCellAsync(DateTime data, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellAsync(double data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
 
-        public virtual async Task AddCellAsync(object data, Style style = null, int horzCellCount = 0, int vertCellCount = 0)
+        public abstract Task AddCellAsync(decimal data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
+
+        public abstract Task AddCellAsync(DateTime data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
+
+        public virtual async Task AddCellAsync(object data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             if (data is Int32)
                 await AddCellAsync((Int32)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
@@ -115,13 +119,22 @@ namespace SpreadsheetStreams
                 await AddCellAsync((DateTime)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else if (data is string)
                 await AddCellAsync((string)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
+            else if (data is Image)
+                await AddCellImageAsync((Image)data, style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else if (data == null)
                 await AddCellAsync("", style, horzCellCount, vertCellCount).ConfigureAwait(false);
             else
                 await AddCellAsync(data.ToString(), style, horzCellCount, vertCellCount).ConfigureAwait(false);
         }
 
-        public abstract Task AddCellFormulaAsync(string formula, Style style = null, int horzCellCount = 0, int vertCellCount = 0);
+        public abstract Task AddCellFormulaAsync(string formula, Style? style = null, int horzCellCount = 0, int vertCellCount = 0);
+
+        public abstract Task AddCellImageAsync(
+            Image image,
+            Style? style = null,
+            int horzCellCount = 0,
+            int vertCellCount = 0,
+            CancellationToken cancellationToken = default);
 
         #endregion
     }

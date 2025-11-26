@@ -13,7 +13,7 @@ namespace SpreadsheetStreams.SyncIO
 
         public static void AddRow(SpreadsheetWriter writer, Style style = null, float height = 0f, bool autoFit = true)
         {
-            writer.AddRowAsync(style, height, autoFit).ConfigureAwait(false).GetAwaiter().GetResult();
+            writer.AddRowAsync(style, height).ConfigureAwait(false).GetAwaiter().GetResult();
         }
         
         public static void Finish(SpreadsheetWriter writer)

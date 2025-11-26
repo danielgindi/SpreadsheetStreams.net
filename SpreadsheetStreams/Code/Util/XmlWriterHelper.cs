@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
 
+#nullable enable
+
 namespace SpreadsheetStreams.Util
 {
     internal class XmlWriterHelper : IDisposable
@@ -15,8 +17,8 @@ namespace SpreadsheetStreams.Util
         };
 
         private StringBuilder _Sb;
-        private StringWriter _StringWriter;
-        private XmlWriter _XmlWriter;
+        private StringWriter? _StringWriter;
+        private XmlWriter? _XmlWriter;
 
         // filters control characters but allows only properly-formed surrogate sequences
         // Credit to Jeff Atwood: https://stackoverflow.com/questions/397250/unicode-regex-invalid-xml-characters/961504#961504
@@ -60,7 +62,7 @@ namespace SpreadsheetStreams.Util
 
         #endregion
 
-        internal string EscapeAttribute(string value, bool removeInvalidChars = true)
+        internal string EscapeAttribute(string? value, bool removeInvalidChars = true)
         {
             if (value == null) return "";
 
@@ -69,7 +71,7 @@ namespace SpreadsheetStreams.Util
 
             _Sb.Clear();
 
-            _XmlWriter.WriteStartElement("e");
+            _XmlWriter!.WriteStartElement("e");
             _XmlWriter.WriteAttributeString("_", value);
             _XmlWriter.WriteEndElement();
             _XmlWriter.Flush();
@@ -77,7 +79,7 @@ namespace SpreadsheetStreams.Util
             return result.Substring(6, result.Length - 10);
         }
 
-        internal string EscapeValue(string value, bool removeInvalidChars = true)
+        internal string EscapeValue(string? value, bool removeInvalidChars = true)
         {
             if (value == null) return "";
 
@@ -86,16 +88,25 @@ namespace SpreadsheetStreams.Util
 
             _Sb.Clear();
 
-            _XmlWriter.WriteString(value);
+            _XmlWriter!.WriteString(value);
             _XmlWriter.Flush();
 
             return _Sb.ToString();
         }
 
-        public static string RemoveInvalidXmlChars(string text, string replacement = "�")
+        public static string RemoveInvalidXmlChars(string? text, string replacement = "�")
         {
             if (text == null || text.Length == 0) return "";
             return _InvalidXmlCharRegex.Replace(text, replacement);
+        }
+
+        public static string EscapeSimpleXmlAttr(string s)
+        {
+            return s.Replace("&", "&amp;")
+                .Replace("<", "&lt;")
+                .Replace(">", "&gt;")
+                .Replace("\"", "&quot;")
+                .Replace("'", "&apos;");
         }
     }
 }

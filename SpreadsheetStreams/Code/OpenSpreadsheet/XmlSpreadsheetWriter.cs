@@ -734,21 +734,21 @@ namespace SpreadsheetStreams
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:R15}</Data></Cell>", styleString, merge, data));
         }
 
         public override async Task AddCellAsync(double data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:R15}</Data></Cell>", styleString, merge, data));
         }
 
         public override async Task AddCellAsync(decimal data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
             string merge = GetCellMergeString(horzCellCount, vertCellCount);
             string styleString = style != null ? $" ss:StyleID=\"{GetStyleId(style, false)}\"" : "";
-            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G}</Data></Cell>", styleString, merge, data));
+            await WriteAsync(string.Format(_Culture, "<Cell{0}{1}><Data ss:Type=\"Number\">{2:G15}</Data></Cell>", styleString, merge, data));
         }
 
         public override async Task AddCellAsync(DateTime data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)

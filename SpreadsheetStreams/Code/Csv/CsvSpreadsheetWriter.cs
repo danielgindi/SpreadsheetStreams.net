@@ -260,17 +260,17 @@ namespace SpreadsheetStreams
 
         public override async Task AddCellAsync(float data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            await WriteAsync(string.Format(_Culture, "{0:G},", data));
+            await WriteAsync(string.Format(_Culture, "{0:G29},", data));
         }
 
         public override async Task AddCellAsync(double data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            await WriteAsync(string.Format(_Culture, "{0:G},", data));
+            await WriteAsync(string.Format(_Culture, "{0:G29},", data));
         }
 
         public override async Task AddCellAsync(decimal data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)
         {
-            await WriteAsync(string.Format(_Culture, "{0:G},", data));
+            await WriteAsync(string.Format(_Culture, "{0:G29},", data));
         }
 
         public override async Task AddCellAsync(DateTime data, Style? style = null, int horzCellCount = 0, int vertCellCount = 0)

@@ -945,11 +945,11 @@ namespace SpreadsheetStreams
 
                 if (_CurrentWorksheetInfo.DefaultRowHeight != null)
                     await _CurrentWorksheetPartWriter.WriteAsync(string.Format(
-                        " defaultRowHeight=\"{0:G}\"",
+                        " defaultRowHeight=\"{0:R15}\"",
                         Math.Max(0f, Math.Min(_CurrentWorksheetInfo.DefaultRowHeight.Value, 409.5f)))).ConfigureAwait(false);
 
                 if (_CurrentWorksheetInfo.DefaultColumnWidth != null)
-                    await _CurrentWorksheetPartWriter.WriteAsync(string.Format(" baseColWidth=\"{0:G}\"", _CurrentWorksheetInfo.DefaultColumnWidth)).ConfigureAwait(false);
+                    await _CurrentWorksheetPartWriter.WriteAsync(string.Format(" baseColWidth=\"{0:R15}\"", _CurrentWorksheetInfo.DefaultColumnWidth)).ConfigureAwait(false);
 
                 await _CurrentWorksheetPartWriter.WriteAsync("/>").ConfigureAwait(false);
 
@@ -1387,7 +1387,7 @@ namespace SpreadsheetStreams
             MergeNextCell(horzCellCount, vertCellCount);
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
-            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
+            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:R15}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
@@ -1402,7 +1402,7 @@ namespace SpreadsheetStreams
             MergeNextCell(horzCellCount, vertCellCount);
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
-            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
+            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:R15}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
@@ -1417,7 +1417,7 @@ namespace SpreadsheetStreams
             MergeNextCell(horzCellCount, vertCellCount);
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
-            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
+            await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G15}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
 
             if (horzCellCount > 1 || vertCellCount > 1)
@@ -1436,7 +1436,7 @@ namespace SpreadsheetStreams
             if (oaDate >= 0)
             {
                 await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
-                await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", oaDate)).ConfigureAwait(false);
+                await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:R15}</v>", oaDate)).ConfigureAwait(false);
                 await WriteCellFooterAsync();
             }
             else

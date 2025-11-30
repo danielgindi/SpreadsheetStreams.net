@@ -146,7 +146,15 @@ class Program
         await writer.NewWorksheetAsync(new WorksheetInfo
         {
             DefaultColumnWidth = 40f,
-            ColumnWidths = new float[] { 0f, 0f, 20f },
+            ColumnInfos = new List<ColumnInfo>
+            {
+                new ColumnInfo
+                {
+                     FromColumn = 2,
+                     ToColumn = 2,
+                     Width = 20f,
+                }
+            },
             DefaultRowHeight = 25f,
             Name = "ws1"
         });
@@ -199,13 +207,32 @@ class Program
             DefaultColumnWidth = 30f,
             DefaultRowHeight = 20f,
             Name = "ws3",
-            ColumnWidths = new[] { 0f, 0f, 0f, 30 },
+            ColumnInfos = new List<ColumnInfo>
+            {
+                new ColumnInfo
+                {
+                     FromColumn = 3,
+                     ToColumn = 3,
+                     Width = 30f,
+                }
+            },
         });
+
+        if (writer is ExcelSpreadsheetWriter excel)
+        {
+            excel.EnableAutoFitForColumn(7, new SpreadsheetStreams.Code.Excel.AutoFitConfig
+            {
+                Multiline = true,
+            });
+        }
 
         await writer.AddRowAsync();
         await writer.AddCellAsync("a1");
         await writer.AddCellAsync("merged b1:d1", centerAroundBorder, 3);
         await writer.AddCellAsync("e1");
+        await writer.AddCellAsync("f1");
+        await writer.AddCellAsync("g1");
+        await writer.AddCellAsync("autofit text");
 
         await writer.AddRowAsync();
         await writer.AddCellAsync("a2");
@@ -213,6 +240,10 @@ class Program
         await writer.AddCellAsync("merged c2:e4", centerAroundBorder, 3, 3);
         await writer.AddCellAsync("f2");
         await writer.AddCellAsync("g2");
+        await writer.AddCellAsync("Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s,\n" + 
+            "when an unknown printer took a galley of type and scrambled it to make a type specimen book.\n" +
+            "It has survived not only five centuries, but also the leap into electronic typesetting,\n" +
+            "remaining essentially unchanged.");
 
         await writer.SkipRowAsync();
         

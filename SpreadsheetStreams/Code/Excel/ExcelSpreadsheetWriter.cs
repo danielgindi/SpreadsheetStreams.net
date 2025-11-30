@@ -93,6 +93,8 @@ namespace SpreadsheetStreams
         private StreamWriter? _CurrentWorksheetPartWriter = null;
         private WorksheetInfo? _CurrentWorksheetInfo = null;
         private FrozenPaneState? _CurrentWorksheePane = null;
+        private Int64 _WrittenColsPosStart = 0;
+        private Int64 _WrittenColsPosEnd = 0;
         private int _RowCount = 0;
         private int _CellCount = 0;
 
@@ -721,6 +723,85 @@ namespace SpreadsheetStreams
 
         #endregion
 
+        #region AutoFit
+
+        private AutoFitConfig? _DefaultAutoFitConfig = null;
+        private Dictionary<int, AutoFitConfig> _AutoFitConfig = new Dictionary<int, AutoFitConfig>();
+        private Dictionary<int, float> _AutoFitState = new Dictionary<int, float>();
+
+        private void UpdateAutoFitForCell(int index, object? value)
+        {
+            AutoFitConfig? conf = null;
+
+            if (!_AutoFitConfig.TryGetValue(index, out conf))
+            {
+                conf = _DefaultAutoFitConfig;
+            }
+
+            if (conf != null)
+            {
+                var size = 0f;
+
+                if (conf.Measure != null)
+                    size = conf.Measure(index, value);
+                else
+                {
+                    var text = value?.ToString() ?? "";
+                    if (conf.Multiline)
+                    {
+                        var max = 0;
+                        foreach (var c in text)
+                        {
+                            if (c == '\n')
+                            {
+                                size = Math.Max(size, max);
+                                max = 0;
+                            }
+                            else
+                            {
+                                max++;
+                            }
+                        }
+
+                        size = Math.Max(size, max);
+                    }
+                    else
+                    {
+                        size = text.Length;
+                    }
+
+                    size *= conf.Multiplier;
+                }
+
+                if (!_AutoFitState.TryGetValue(index, out var current) || size > current)
+                {
+                    _AutoFitState[index] = size;
+                }
+            }
+        }
+
+        public void EnableAutoFitForDefaultColumn(int index, AutoFitConfig config)
+        {
+            _DefaultAutoFitConfig = config;
+        }
+
+        public void DisableAutoFitForDefaultColumn(int index)
+        {
+            _DefaultAutoFitConfig = null;
+        }
+
+        public void EnableAutoFitForColumn(int index, AutoFitConfig config)
+        {
+            _AutoFitConfig[index] = config;
+        }
+
+        public void DisableAutoFitForColumn(int index)
+        {
+            _AutoFitConfig.Remove(index);
+        }
+
+        #endregion
+
         #region SpreadsheetWriter - Document Lifespan (private)
 
         private const string _WORKBOOK_PATH = "/xl/workbook.xml";
@@ -953,29 +1034,99 @@ namespace SpreadsheetStreams
 
                 await _CurrentWorksheetPartWriter.WriteAsync("/>").ConfigureAwait(false);
 
-                var sb = new StringBuilder();
-                if (_CurrentWorksheetInfo.ColumnWidths != null)
+                await _CurrentWorksheetPartWriter.FlushAsync();
+                _WrittenColsPosStart = _CurrentWorksheetPartWriter.BaseStream.Position;
+                var colsXml = GenerateColumnsXml();
+                if (colsXml != null)
                 {
-                    for (int i = 0; i < _CurrentWorksheetInfo.ColumnWidths.Length; i++)
-                    {
-                        var w = _CurrentWorksheetInfo.ColumnWidths[i];
-                        if (w == 0f || w == _CurrentWorksheetInfo.DefaultColumnWidth) continue;
-
-                        sb.Append($"<col min=\"{i + 1}\" max=\"{i + 1}\" width=\"{w:G}\" bestFit=\"1\" customWidth=\"1\"/>");
-                    }
+                    await _CurrentWorksheetPartWriter.WriteAsync(colsXml).ConfigureAwait(false);
+                    await _CurrentWorksheetPartWriter.FlushAsync();
                 }
-
-                if (sb.Length > 0)
-                {
-                    await _CurrentWorksheetPartWriter.WriteAsync("<cols>").ConfigureAwait(false);
-                    await _CurrentWorksheetPartWriter.WriteAsync(sb.ToString()).ConfigureAwait(false);
-                    await _CurrentWorksheetPartWriter.WriteAsync("</cols>").ConfigureAwait(false);
-                }
+                _WrittenColsPosEnd = _CurrentWorksheetPartWriter.BaseStream.Position;
 
                 await _CurrentWorksheetPartWriter.WriteAsync("<sheetData>").ConfigureAwait(false);
             }
 
             _ShouldBeginWorksheet = false;
+        }
+
+        private string? GenerateColumnsXml()
+        {
+            if (_CurrentWorksheetInfo == null)
+                return null;
+
+            var sb = new StringBuilder();
+            if (_CurrentWorksheetInfo.ColumnInfos != null)
+            {
+                var colsIndicesWithAutoFit = _AutoFitState.Keys.ToHashSet();
+
+                void outputRange(ColumnInfo ci, int min, int max, float? autoFitWidth = null)
+                {
+                    sb.Append($"<col min=\"{min + 1}\" max=\"{max + 1}\" bestFit=\"0\"");
+
+                    if (autoFitWidth != null)
+                        sb.Append($" width=\"{autoFitWidth.Value:G}\" customWidth=\"1\"");
+                    else if (ci.Width != null && ci.Width != 0f && ci.Width != _CurrentWorksheetInfo.DefaultColumnWidth)
+                        sb.Append($" width=\"{ci.Width.Value:G}\" customWidth=\"1\"");
+
+                    if (ci.Hidden)
+                        sb.Append($" hidden=\"1\"");
+
+
+                    sb.Append($" />");
+                };
+
+                for (int i = 0; i < _CurrentWorksheetInfo.ColumnInfos.Count; i++)
+                {
+                    var ci = _CurrentWorksheetInfo.ColumnInfos[i];
+
+                    var matches = colsIndicesWithAutoFit
+                        .Where(i => i >= ci.FromColumn && i <= ci.ToColumn)
+                        .OrderBy(i => i)
+                        .ToList();
+
+                    // Case 1: No auto-fit columns inside → output whole range
+                    if (matches.Count == 0)
+                    {
+                        outputRange(ci, ci.FromColumn, ci.ToColumn);
+                        continue;
+                    }
+
+                    // Case 2: Need to split the range
+                    int current = ci.FromColumn;
+
+                    foreach (var m in matches)
+                    {
+                        colsIndicesWithAutoFit.Remove(m);
+
+                        // Output the non-auto-fit chunk before the match
+                        if (current <= m - 1)
+                            outputRange(ci, current, m - 1);
+
+                        // Output the auto-fit column as its own range
+                        outputRange(ci, m, m, _AutoFitState[m]); // single column
+
+                        current = m + 1;
+                    }
+
+                    // Output the tail chunk after the last auto-fit index
+                    if (current <= ci.ToColumn)
+                        outputRange(ci, current, ci.ToColumn);
+                }
+
+                foreach (var m in colsIndicesWithAutoFit)
+                {
+                    outputRange(new ColumnInfo { }, m, m, _AutoFitState[m]);
+                }
+            }
+
+            if (sb.Length > 0)
+            {
+                sb.Insert(0, "<cols>");
+                sb.Append("</cols>");
+            }
+
+            return sb.ToString();
         }
 
         private async Task WritePendingEndRowAsync()
@@ -1024,15 +1175,64 @@ namespace SpreadsheetStreams
             _CurrentWorksheetPartWriter = null;
             _CurrentWorksheetPartStream = null;
 
+            if (_AutoFitState.Count > 0)
+            {
+                var xml = GenerateColumnsXml();
+
+                if (xml != null)
+                {
+                    var autoFitTmpFile = System.IO.Path.GetTempFileName();
+                    using var autoFitStream = System.IO.File.Open(autoFitTmpFile, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
+                    using var autoFitWriter = new StreamWriter(autoFitStream, Encoding.UTF8);
+
+                    using (var input = new FileStream(_CurrentWorksheetTempPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        CopyBytes(input, autoFitStream, _WrittenColsPosStart);
+                        await autoFitWriter.WriteAsync(xml).ConfigureAwait(false);
+                        await autoFitWriter.FlushAsync().ConfigureAwait(false);
+                        input.Position = _WrittenColsPosEnd;
+                        await input.CopyToAsync(autoFitStream).ConfigureAwait(false);
+                    }
+
+                    try
+                    {
+                        File.Delete(_CurrentWorksheetTempPath);
+                    }
+                    catch { }
+
+                    _CurrentWorksheetTempPath = autoFitTmpFile;
+                }
+            }
+
             var packageEntry = _Package!.CreateEntry(_CurrentWorksheetInfo!.Path, _CompressionLevel);
             var entryStream = packageEntry.Open();
             using (var readStream = File.Open(_CurrentWorksheetTempPath, FileMode.Open, FileAccess.Read, FileShare.Read))
                 await readStream.CopyToAsync(entryStream);
             entryStream.Dispose();
-            File.Delete(_CurrentWorksheetTempPath);
+
+            try
+            {
+                File.Delete(_CurrentWorksheetTempPath);
+            }
+            catch { }
             _CurrentWorksheetTempPath = null;
 
             _ShouldEndWorksheet = false;
+        }
+
+        private static void CopyBytes(Stream input, Stream output, Int64 count)
+        {
+            byte[] buffer = new byte[4096];
+            long remaining = count;
+
+            while (remaining > 0)
+            {
+                int toRead = (int)Math.Min(buffer.Length, remaining);
+                int read = input.Read(buffer, 0, toRead);
+                if (read == 0) break;
+                output.Write(buffer, 0, read);
+                remaining -= read;
+            }
         }
 
         private void BeginFile()
@@ -1071,6 +1271,10 @@ namespace SpreadsheetStreams
             _QueuedRowIndexes.Clear();
             _NextQueuedRowIndex = 0;
             _MaxQueuedRowIndex = 0;
+
+            _DefaultAutoFitConfig = null;
+            _AutoFitConfig.Clear();
+            _AutoFitState.Clear();
         }
 
         public void SetWorksheetFrozenPane(FrozenPaneState? pane)
@@ -1270,6 +1474,8 @@ namespace SpreadsheetStreams
             if (data != null && data.Length > 32767)
                 data = data.Remove(32767);
 
+            UpdateAutoFitForCell(_CellCount, data);
+
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.FormulaString, style);
             await _CurrentWorksheetPartWriter!.WriteAsync("<v>" + _XmlWriterHelper!.EscapeValue(data) + "</v>").ConfigureAwait(false);
             await WriteCellFooterAsync();
@@ -1302,6 +1508,8 @@ namespace SpreadsheetStreams
             if (data != null && data.Length > 32767)
                 data = data.Remove(32767);
 
+            UpdateAutoFitForCell(_CellCount, data);
+
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, type, style);
             await _CurrentWorksheetPartWriter!.WriteAsync("<v>" + _XmlWriterHelper!.EscapeValue(data) + "</v>").ConfigureAwait(false);
             await WriteCellFooterAsync();
@@ -1322,6 +1530,8 @@ namespace SpreadsheetStreams
             
             MergeNextCell(horzCellCount, vertCellCount);
 
+            UpdateAutoFitForCell(_CellCount, data);
+
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
             await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
@@ -1337,6 +1547,8 @@ namespace SpreadsheetStreams
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
+
+            UpdateAutoFitForCell(_CellCount, data);
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
             await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
@@ -1354,6 +1566,8 @@ namespace SpreadsheetStreams
             
             MergeNextCell(horzCellCount, vertCellCount);
 
+            UpdateAutoFitForCell(_CellCount, data);
+
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
             await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
@@ -1369,6 +1583,8 @@ namespace SpreadsheetStreams
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
+
+            UpdateAutoFitForCell(_CellCount, data);
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
             await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G}</v>", data)).ConfigureAwait(false);
@@ -1386,6 +1602,8 @@ namespace SpreadsheetStreams
             
             MergeNextCell(horzCellCount, vertCellCount);
 
+            UpdateAutoFitForCell(_CellCount, data);
+
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
             await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:R15}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
@@ -1401,6 +1619,8 @@ namespace SpreadsheetStreams
             
             MergeNextCell(horzCellCount, vertCellCount);
 
+            UpdateAutoFitForCell(_CellCount, data);
+
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
             await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:R15}</v>", data)).ConfigureAwait(false);
             await WriteCellFooterAsync();
@@ -1415,6 +1635,8 @@ namespace SpreadsheetStreams
                 await WriteMergedCellCounterparts(_RowCount, _CellCount);
             
             MergeNextCell(horzCellCount, vertCellCount);
+
+            UpdateAutoFitForCell(_CellCount, data);
 
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
             await _CurrentWorksheetPartWriter!.WriteAsync(string.Format(_Culture, "<v>{0:G15}</v>", data)).ConfigureAwait(false);
@@ -1432,7 +1654,9 @@ namespace SpreadsheetStreams
             MergeNextCell(horzCellCount, vertCellCount);
 
             var oaDate = data.ToOADate();
-            
+
+            UpdateAutoFitForCell(_CellCount, data);
+
             if (oaDate >= 0)
             {
                 await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.Number, style);
@@ -1455,6 +1679,8 @@ namespace SpreadsheetStreams
 
             MergeNextCell(horzCellCount, vertCellCount);
 
+            UpdateAutoFitForCell(_CellCount, formula);
+
             await WriteCellHeaderAsync(_CellCount++ + 1, _RowCount, false, ExcelValueTypes.FormulaString, style);
             await _CurrentWorksheetPartWriter!.WriteAsync("<f>" + _XmlWriterHelper!.EscapeValue(formula) + "</f>").ConfigureAwait(false);
             await WriteCellFooterAsync();
@@ -1476,6 +1702,8 @@ namespace SpreadsheetStreams
             MergeNextCell(horzCellCount, vertCellCount);
 
             int vm = await _Package!.AddImageAsync(image, cancellationToken) + 1;
+
+            UpdateAutoFitForCell(_CellCount, image);
 
             await WriteCellHeaderAsync(
                 cellIndex: _CellCount++ + 1,

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -72,7 +73,7 @@ namespace SpreadsheetStreams
         private Dictionary<Style, int> _Styles = new Dictionary<Style, int>();
         private int _WorksheetCount = 0;
         private WorksheetInfo? _CurrentWorksheetInfo = null;
-        private List<string> _Columns = new List<string>();
+        private List<string> _ColumnsSizes = new List<string>();
 
         private XmlWriterHelper? _XmlWriterHelper = new XmlWriterHelper();
 
@@ -484,7 +485,7 @@ namespace SpreadsheetStreams
 
                 await WriteAsync(">");
 
-                foreach (string col in _Columns)
+                foreach (string col in _ColumnsSizes)
                 {
                     if (string.IsNullOrEmpty(col)) await WriteAsync("<Column/>");
                     else await WriteAsync($"<Column ss:Width=\"{col}\"/>");
@@ -555,22 +556,52 @@ namespace SpreadsheetStreams
         {
             await WritePendingEndWorksheetAsync();
 
-            _Columns.Clear();
+            _ColumnsSizes.Clear();
             _CurrentWorksheetInfo = info;
             _WorksheetCount++;
 
-            if (info.ColumnWidths != null)
+            if (info.ColumnInfos != null)
             {
-                foreach (var width in info.ColumnWidths)
+                var infos = info.ColumnInfos.ToList();
+                if (infos.Count > 0)
                 {
-                    string columnString = "";
-
-                    if (width != 0.0)
+                    infos.Sort((a, b) =>
                     {
-                        columnString = (width * COLUMN_WIDTH_MULTIPLIER).ToString("G", _Culture);
-                    }
+                        var cmp = a.FromColumn - b.FromColumn;
+                        if (cmp == 0)
+                            cmp = a.ToColumn - b.ToColumn;
+                        return cmp;
+                    });
+                    int min = infos.Count == 0 ? 0 : infos.Min(a => a.FromColumn);
+                    int max = infos.Count == 0 ? 0 : infos.Max(a => a.ToColumn);
+                    int cii = 0;
 
-                    _Columns.Add(columnString);
+                    for (int i = 0; i <= max; i++)
+                    {
+                        var ci = cii < infos.Count ? infos[cii] : null;
+
+                        while (ci != null && i > ci.ToColumn)
+                        {
+                            cii++;
+                            ci = cii < infos.Count ? infos[cii] : null;
+                        }
+
+                        if (ci?.Width != null && i >= ci.FromColumn && i <= ci.ToColumn)
+                        {
+                            string columnString = "";
+
+                            if (ci.Width != 0.0f)
+                            {
+                                columnString = (ci.Width.Value * COLUMN_WIDTH_MULTIPLIER).ToString("G", _Culture);
+                            }
+
+                            _ColumnsSizes.Add(columnString);
+                        }
+                        else
+                        {
+                            _ColumnsSizes.Add("");
+                        }
+                    }
                 }
             }
 

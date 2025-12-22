@@ -1056,7 +1056,25 @@ namespace SpreadsheetStreams
                 return null;
 
             var sb = new StringBuilder();
+
+            var columnInfos = new List<ColumnInfo>();
+
             if (_CurrentWorksheetInfo.ColumnInfos != null)
+                columnInfos.AddRange(_CurrentWorksheetInfo.ColumnInfos);
+
+            foreach (var c in _AutoFitState.Keys)
+            {
+                if (!columnInfos.Any(x => c >= x.FromColumn && c <= x.ToColumn))
+                {
+                    columnInfos.Add(new ColumnInfo
+                    {
+                        FromColumn = c,
+                        ToColumn = c,
+                    });
+                }
+            }
+
+            if (columnInfos != null)
             {
                 var colsIndicesWithAutoFit = _AutoFitState.Keys.ToHashSet();
 
@@ -1076,9 +1094,9 @@ namespace SpreadsheetStreams
                     sb.Append($" />");
                 };
 
-                for (int i = 0; i < _CurrentWorksheetInfo.ColumnInfos.Count; i++)
+                for (int i = 0; i < columnInfos.Count; i++)
                 {
-                    var ci = _CurrentWorksheetInfo.ColumnInfos[i];
+                    var ci = columnInfos[i];
 
                     var matches = colsIndicesWithAutoFit
                         .Where(i => i >= ci.FromColumn && i <= ci.ToColumn)

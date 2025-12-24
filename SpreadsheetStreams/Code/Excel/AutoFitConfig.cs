@@ -16,5 +16,10 @@ namespace SpreadsheetStreams.Code.Excel
         /// Not applied for <see cref="Measure"/> results.
         /// </summary>
         public float Multiplier { get; set; } = 1.2f;
+
+        /// <summary>
+        /// Max length for auto fit measurement.
+        /// </summary>
+        public float MaxLength { get; set; } = 120f;
     }
 }

@@ -740,6 +740,12 @@ namespace SpreadsheetStreams
 
             if (conf != null)
             {
+                if (!_AutoFitState.TryGetValue(index, out var current))
+                    current = -1f;
+
+                if (current > -1f && current >= conf.MaxLength)
+                    return;
+
                 var size = 0f;
 
                 if (conf.Measure != null)
@@ -773,10 +779,8 @@ namespace SpreadsheetStreams
                     size *= conf.Multiplier;
                 }
 
-                if (!_AutoFitState.TryGetValue(index, out var current) || size > current)
-                {
+                if (size > current)
                     _AutoFitState[index] = size;
-                }
             }
         }
 

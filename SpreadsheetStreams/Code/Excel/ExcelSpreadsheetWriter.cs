@@ -752,32 +752,10 @@ namespace SpreadsheetStreams
                     size = conf.Measure(index, value);
                 else
                 {
-                    var text = value?.ToString() ?? "";
-                    if (conf.Multiline)
-                    {
-                        var max = 0;
-                        foreach (var c in text)
-                        {
-                            if (c == '\n')
-                            {
-                                size = Math.Max(size, max);
-                                max = 0;
-                            }
-                            else
-                            {
-                                max++;
-                            }
-                        }
-
-                        size = Math.Max(size, max);
-                    }
-                    else
-                    {
-                        size = text.Length;
-                    }
-
-                    size *= conf.Multiplier;
+                    size = TextWidthEstimator.MeasureText(value?.ToString() ?? "", conf.Multiline, 2f, 0.9f, 0f, conf.MaxLength);
                 }
+
+                size *= conf.Multiplier;
 
                 if (size > current)
                     _AutoFitState[index] = Math.Min(size, conf.MaxLength);

@@ -13,9 +13,8 @@ namespace SpreadsheetStreams.Code.Excel
 
         /// <summary>
         /// Multiplier for size measurement (character size -> column size).
-        /// Not applied for <see cref="Measure"/> results.
         /// </summary>
-        public float Multiplier { get; set; } = 1.2f;
+        public float Multiplier { get; set; } = 1.0f;
 
         /// <summary>
         /// Max length for auto fit measurement.

@@ -780,7 +780,7 @@ namespace SpreadsheetStreams
                 }
 
                 if (size > current)
-                    _AutoFitState[index] = size;
+                    _AutoFitState[index] = Math.Min(size, conf.MaxLength);
             }
         }
 

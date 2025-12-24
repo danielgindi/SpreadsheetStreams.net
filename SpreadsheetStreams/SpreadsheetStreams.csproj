@@ -9,7 +9,7 @@
     <RootNamespace>SpreadsheetStreams</RootNamespace>
     <AssemblyName>SpreadsheetStreams.net</AssemblyName>
     <TargetFramework>netstandard2.1</TargetFramework>
-	<LangVersion>8.0</LangVersion>
+	<LangVersion>9.0</LangVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -43,7 +43,7 @@
     <PackageProjectUrl></PackageProjectUrl>
     <RepositoryUrl>https://github.com/danielgindi/SpreadsheetStreams.net</RepositoryUrl>
     <PackageLicenseUrl>https://github.com/danielgindi/SpreadsheetStreams.net/blob/master/LICENSE</PackageLicenseUrl>
-    <Version>2.0.13</Version>
+    <Version>2.0.14</Version>
   </PropertyGroup>
   <ItemGroup>
     <Folder Include="Properties\" />

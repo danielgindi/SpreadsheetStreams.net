@@ -973,7 +973,7 @@ namespace SpreadsheetStreams
 
             _CurrentWorksheetTempPath = System.IO.Path.GetTempFileName();
 
-            _CurrentWorksheetPartStream = System.IO.File.Open(_CurrentWorksheetTempPath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
+            _CurrentWorksheetPartStream = CreateCompressedWorksheetTempWriteStream(_CurrentWorksheetTempPath);
             _CurrentWorksheetPartWriter = new StreamWriter(_CurrentWorksheetPartStream, Encoding.UTF8);
 
             await _CurrentWorksheetPartWriter.WriteAsync("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n").ConfigureAwait(false);
@@ -1182,15 +1182,19 @@ namespace SpreadsheetStreams
                 if (xml != null)
                 {
                     var autoFitTmpFile = System.IO.Path.GetTempFileName();
-                    using var autoFitStream = System.IO.File.Open(autoFitTmpFile, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
-                    using var autoFitWriter = new StreamWriter(autoFitStream, Encoding.UTF8);
+                    using var autoFitStream = CreateCompressedWorksheetTempWriteStream(autoFitTmpFile);
 
-                    using (var input = new FileStream(_CurrentWorksheetTempPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    using (var input = OpenCompressedWorksheetTempReadStream(_CurrentWorksheetTempPath!))
                     {
-                        CopyBytes(input, autoFitStream, _WrittenColsPosStart);
-                        await autoFitWriter.WriteAsync(xml).ConfigureAwait(false);
-                        await autoFitWriter.FlushAsync().ConfigureAwait(false);
-                        input.Position = _WrittenColsPosEnd;
+                        await CopyBytesAsync(input, autoFitStream, _WrittenColsPosStart).ConfigureAwait(false);
+
+                        using (var autoFitWriter = new StreamWriter(autoFitStream, new UTF8Encoding(false), 1024, true))
+                        {
+                            await autoFitWriter.WriteAsync(xml).ConfigureAwait(false);
+                            await autoFitWriter.FlushAsync().ConfigureAwait(false);
+                        }
+
+                        await SkipBytesAsync(input, _WrittenColsPosEnd - _WrittenColsPosStart).ConfigureAwait(false);
                         await input.CopyToAsync(autoFitStream).ConfigureAwait(false);
                     }
 
@@ -1206,7 +1210,7 @@ namespace SpreadsheetStreams
 
             var packageEntry = _Package!.CreateEntry(_CurrentWorksheetInfo!.Path, _CompressionLevel);
             var entryStream = packageEntry.Open();
-            using (var readStream = File.Open(_CurrentWorksheetTempPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var readStream = OpenCompressedWorksheetTempReadStream(_CurrentWorksheetTempPath!))
                 await readStream.CopyToAsync(entryStream);
             entryStream.Dispose();
 
@@ -1220,18 +1224,121 @@ namespace SpreadsheetStreams
             _ShouldEndWorksheet = false;
         }
 
-        private static void CopyBytes(Stream input, Stream output, Int64 count)
+        private const int _TEMP_COPY_BUFFER_SIZE = 81920;
+
+        private static Stream CreateCompressedWorksheetTempWriteStream(string path)
         {
-            byte[] buffer = new byte[4096];
+            var file = System.IO.File.Open(path, FileMode.Create, FileAccess.Write, FileShare.Read);
+            var gzip = new GZipStream(file, CompressionLevel.Fastest);
+            return new CountingWriteStream(gzip);
+        }
+
+        private static Stream OpenCompressedWorksheetTempReadStream(string path)
+        {
+            var file = System.IO.File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return new GZipStream(file, CompressionMode.Decompress);
+        }
+
+        private static async Task CopyBytesAsync(Stream input, Stream output, Int64 count)
+        {
+            byte[] buffer = new byte[_TEMP_COPY_BUFFER_SIZE];
             long remaining = count;
 
             while (remaining > 0)
             {
                 int toRead = (int)Math.Min(buffer.Length, remaining);
-                int read = input.Read(buffer, 0, toRead);
+                int read = await input.ReadAsync(buffer, 0, toRead).ConfigureAwait(false);
                 if (read == 0) break;
-                output.Write(buffer, 0, read);
+                await output.WriteAsync(buffer, 0, read).ConfigureAwait(false);
                 remaining -= read;
+            }
+        }
+
+        private static async Task SkipBytesAsync(Stream input, Int64 count)
+        {
+            byte[] buffer = new byte[_TEMP_COPY_BUFFER_SIZE];
+            long remaining = count;
+
+            while (remaining > 0)
+            {
+                int toRead = (int)Math.Min(buffer.Length, remaining);
+                int read = await input.ReadAsync(buffer, 0, toRead).ConfigureAwait(false);
+                if (read == 0) break;
+                remaining -= read;
+            }
+        }
+
+        private sealed class CountingWriteStream : Stream
+        {
+            private readonly Stream _Stream;
+            private long _Position;
+
+            public CountingWriteStream(Stream stream)
+            {
+                _Stream = stream;
+            }
+
+            public override bool CanRead => false;
+            public override bool CanSeek => false;
+            public override bool CanWrite => _Stream.CanWrite;
+            public override long Length => _Position;
+            public override long Position
+            {
+                get => _Position;
+                set => throw new NotSupportedException();
+            }
+
+            public override void Flush()
+            {
+                _Stream.Flush();
+            }
+
+            public override Task FlushAsync(CancellationToken cancellationToken)
+            {
+                return _Stream.FlushAsync(cancellationToken);
+            }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                throw new NotSupportedException();
+            }
+
+            public override long Seek(long offset, SeekOrigin origin)
+            {
+                throw new NotSupportedException();
+            }
+
+            public override void SetLength(long value)
+            {
+                throw new NotSupportedException();
+            }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                _Stream.Write(buffer, offset, count);
+                _Position += count;
+            }
+
+            public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            {
+                await _Stream.WriteAsync(buffer, offset, count, cancellationToken).ConfigureAwait(false);
+                _Position += count;
+            }
+
+            public override void WriteByte(byte value)
+            {
+                _Stream.WriteByte(value);
+                _Position++;
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    _Stream.Dispose();
+                }
+
+                base.Dispose(disposing);
             }
         }
 
